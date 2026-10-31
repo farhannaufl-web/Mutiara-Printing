@@ -42,3 +42,12 @@ export interface AdminStats {
     clickCount: number;
   }[];
 }
+
+export interface ClientLogo {
+  id: string;
+  name: string;
+  logo_url?: string;
+  sort_order?: number;
+  is_active?: boolean;
+}
+

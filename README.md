@@ -66,9 +66,41 @@ CREATE TABLE IF NOT EXISTS public.wa_clicks (
 
 CREATE INDEX IF NOT EXISTS idx_wa_clicks_created ON public.wa_clicks(created_at DESC);
 
--- 3. Aktifkan Row Level Security (RLS)
+-- 3. Buat Tabel Klien (clients) untuk Logo Marquee
+CREATE TABLE IF NOT EXISTS public.clients (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  logo_url TEXT,
+  sort_order INT DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Seed awal klien
+INSERT INTO public.clients (name, sort_order, is_active)
+VALUES 
+  ('Infobank', 1, true),
+  ('PNM', 2, true),
+  ('Pertamina', 3, true)
+ON CONFLICT DO NOTHING;
+
+-- 4. Aktifkan Row Level Security (RLS)
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wa_clicks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Publik bisa membaca clients yang aktif
+CREATE POLICY "Public can view active clients"
+  ON public.clients FOR SELECT
+  USING (is_active = true);
+
+-- Policy: Pengguna terautentikasi (admin) bisa kelola clients
+CREATE POLICY "Authenticated users have full access to clients"
+  ON public.clients FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
 
 -- Policy: Publik hanya bisa membaca produk yang aktif (is_active = true)
 CREATE POLICY "Public can view active products"

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { Product, WAClick, AdminStats } from '../types';
+import { Product, WAClick, AdminStats, ClientLogo } from '../types';
 import { DEMO_PRODUCTS } from './demoData';
+
 
 // Read env variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -410,3 +411,75 @@ export async function uploadProductImage(file: File): Promise<string> {
     reader.readAsDataURL(compressedBlob);
   });
 }
+
+// Default Client Logos (Infobank, PNM, Pertamina requested by user, plus additional corporate clients)
+export const DEFAULT_CLIENTS: ClientLogo[] = [
+  {
+    id: 'client-infobank',
+    name: 'Infobank',
+    sort_order: 1,
+    is_active: true,
+  },
+  {
+    id: 'client-pnm',
+    name: 'PNM',
+    sort_order: 2,
+    is_active: true,
+  },
+  {
+    id: 'client-pertamina',
+    name: 'Pertamina',
+    sort_order: 3,
+    is_active: true,
+  },
+  {
+    id: 'client-mandiri',
+    name: 'Bank Mandiri',
+    sort_order: 4,
+    is_active: true,
+  },
+  {
+    id: 'client-bni',
+    name: 'BNI',
+    sort_order: 5,
+    is_active: true,
+  },
+  {
+    id: 'client-telkom',
+    name: 'Telkom Indonesia',
+    sort_order: 6,
+    is_active: true,
+  },
+];
+
+// Fetch Client Logos (from Supabase table 'clients', with local fallback)
+export async function fetchClients(): Promise<ClientLogo[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data as ClientLogo[];
+      }
+    } catch (e) {
+      console.warn('Failed to fetch clients from Supabase, using defaults:', e);
+    }
+  }
+
+  try {
+    const raw = localStorage.getItem('mutiara_clients_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  return DEFAULT_CLIENTS;
+}
+

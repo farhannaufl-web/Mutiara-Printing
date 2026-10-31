@@ -7,6 +7,8 @@ import { handleWhatsAppClick } from '../lib/whatsapp';
 import { Product } from '../types';
 import { ProductCard } from '../components/common/ProductCard';
 import { CatalogSkeletonGrid } from '../components/common/LoadingSkeleton';
+import { ClientLogosMarquee } from '../components/common/ClientLogosMarquee';
+
 import {
   MessageCircle,
   ArrowRight,
@@ -183,9 +185,15 @@ export const HomePage: React.FC = () => {
         </section>
 
         {/* ======================================================== */}
+        {/* 2.5. CLIENT LOGOS AUTO-LOOP MARQUEE                      */}
+        {/* ======================================================== */}
+        <ClientLogosMarquee />
+
+        {/* ======================================================== */}
         {/* 3. CATEGORIES SECTION                                   */}
         {/* ======================================================== */}
         <section className="py-16 sm:py-20 bg-[#0B1120]">
+
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-10">
               <div>
