@@ -1,0 +1,6 @@
+{
+  "name": "Mutiara Printing - Plakat & Trophy Custom Jakarta",
+  "description": "Spesialis pembuatan plakat resin, akrilik, timah/logam, medali kejuaraan, dan trophy kristal custom di Blok M Square Jakarta Selatan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

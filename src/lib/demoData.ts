@@ -1,0 +1,118 @@
+import { Product } from '../types';
+
+export const DEMO_PRODUCTS: Product[] = [
+  {
+    id: 'demo-1',
+    title: 'Plakat Resin Crystal Block Emblem Gold 3D',
+    slug: 'plakat-resin-crystal-block-emblem-gold-3d',
+    category: 'resin',
+    description:
+      'Plakat penghargaan eksklusif berbahan resin polimer kualitas tinggi dengan kejernihan maksimal dan bebas gelembung. Dilengkapi lambang logam cor timbul bersepuh emas 24k dan dudukan kayu mahoni solid berpernis doff elegan. Sangat ideal untuk cenderamata instansi, kenang-kenangan pensiun, dan award eksekutif.',
+    material: 'Clear Resin Polymer Premium + Logam Cor Finishing Gold Plated + Solid Wood Base',
+    size_info: 'Tinggi 20 cm x Lebar 14 cm x Tebal 4 cm',
+    min_order: '1 pcs (Tersedia diskon untuk pesanan massal)',
+    image_urls: [
+      '/src/assets/images/plakat_resin_custom_1793424612242.jpg',
+      '/src/assets/images/hero_trophy_showcase_1793424612733.jpg',
+    ],
+    is_featured: true,
+    is_active: true,
+    sort_order: 1,
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    id: 'demo-2',
+    title: 'Plakat Akrilik Faceted Diamond Bevel Cut',
+    slug: 'plakat-akrilik-faceted-diamond-bevel-cut',
+    category: 'akrilik',
+    description:
+      'Plakat akrilik modern dengan potongan laser sudut facet permata presisi tinggi. Sisi tepi di-finishing flame polish berkilau, teks dan grafir logo menggunakan tinta UV Flatbed beresolusi tinggi tahan gores. Dilengkapi tatakan akrilik tebal 15mm yang stabil dan kokoh.',
+    material: 'Cast Acrylic Grade A Murni 10mm & 15mm + UV High-Definition Flatbed Print',
+    size_info: 'Tinggi 21 cm x Lebar 15 cm x Tebal 1.5 cm',
+    min_order: '1 pcs (Bisa pengerjaan express)',
+    image_urls: [
+      '/src/assets/images/plakat_akrilik_modern_1793424613900.jpg',
+      '/src/assets/images/hero_trophy_showcase_1793424612733.jpg',
+    ],
+    is_featured: true,
+    is_active: true,
+    sort_order: 2,
+    created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+  },
+  {
+    id: 'demo-3',
+    title: 'Trophy Kristal Prismatik Pinnacle Leadership',
+    slug: 'trophy-kristal-prismatik-pinnacle-leadership',
+    category: 'kristal',
+    description:
+      'Piala penghargaan mewah dari bahan optical crystal murni kelas K9 yang menghasilkan bias prisma cahaya emas nan megah. Dipahat dengan presisi geometris dan di-sandblast grafir tulisan mendalam bernuansa emas mewah. Pilihan utama untuk penghargaan Direksi, CEO, dan mitra korporat berskala nasional.',
+    material: 'Optical Crystal K9 Pure Grade + Tatakan Black Crystal Solid Pedestal',
+    size_info: 'Tinggi 25 cm x Lebar 11 cm x Tebal 7 cm',
+    min_order: '1 pcs (Sudah termasuk hardbox beludru eksklusif)',
+    image_urls: [
+      '/src/assets/images/trophy_kristal_award_1793424615699.jpg',
+      '/src/assets/images/hero_trophy_showcase_1793424612733.jpg',
+    ],
+    is_featured: true,
+    is_active: true,
+    sort_order: 3,
+    created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+  },
+  {
+    id: 'demo-4',
+    title: 'Set Medali Kejuaraan Logam Custom 3D & Ribbon Satin',
+    slug: 'set-medali-kejuaraan-logam-custom-3d-ribbon-satin',
+    category: 'medali',
+    description:
+      'Medali kejuaraan dari paduan logam cor seng (zinc alloy) tebal dengan ukiran relief 3D yang sangat tajam dan presisi. Tersedia dalam sepuhan Gold, Silver, dan Antique Bronze. Sudah termasuk pita tali leher satin premium bergaris tenun kuat dan kait ring metal antik.',
+    material: 'Zinc Alloy / Logam Cor Kuningan + Satin Ribbon Printing Sublim',
+    size_info: 'Diameter 7 cm, Tebal 3.5 mm (Panjang pita 90 cm)',
+    min_order: '10 pcs (Diskon kuantiti untuk event olahraga & sekolah)',
+    image_urls: [
+      '/src/assets/images/medali_logam_custom_1793424614582.jpg',
+      '/src/assets/images/hero_trophy_showcase_1793424612733.jpg',
+    ],
+    is_featured: true,
+    is_active: true,
+    sort_order: 4,
+    created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
+  },
+  {
+    id: 'demo-5',
+    title: 'Plakat Timah Logam Cor Relief Garuda & Siluet Gedung',
+    slug: 'plakat-timah-logam-cor-relief-garuda',
+    category: 'timah',
+    description:
+      'Plakat resmi kedinasan dan kenegaraan menggunakan plat timah logam cor corak timbul dengan sepuhan perak/emas antik. Dipadukan dengan bingkai kayu jati ukir atau akrilik pelindung. Cocok untuk kunjungan kerja instansi pemerintah, BUMN, perbankan, dan TNI/Polri.',
+    material: 'Logam Timah Padat Cor Cetak + Bingkai Kayu Hardwood Perhutani',
+    size_info: 'Tinggi 22 cm x Lebar 16 cm x Tebal 3 cm',
+    min_order: '1 pcs',
+    image_urls: [
+      '/src/assets/images/hero_trophy_showcase_1793424612733.jpg',
+      '/src/assets/images/plakat_resin_custom_1793424612242.jpg',
+    ],
+    is_featured: false,
+    is_active: true,
+    sort_order: 5,
+    created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+  },
+  {
+    id: 'demo-6',
+    title: 'Custom Pin Enamel & Name Tag Logam Magnetik',
+    slug: 'custom-pin-enamel-nametag-logam-magnetik',
+    category: 'lainnya',
+    description:
+      'Aksesori identitas korporat dan cinderamata event berupa pin logam enamel lapis resin bening anti pudar dan name tag eksekutif magnetik kuat tanpa merusak pakaian. Tahan air, tahan karat, dan memiliki kilau presisi profesional.',
+    material: 'Kuningan / Stainless Steel + Magnet Neodymium Ganda / Peniti Kupu-Kupu',
+    size_info: 'Custom sesuai logo (Standar Pin 3x3 cm, Nametag 2x8 cm)',
+    min_order: '15 pcs',
+    image_urls: [
+      '/src/assets/images/medali_logam_custom_1793424614582.jpg',
+      '/src/assets/images/plakat_akrilik_modern_1793424613900.jpg',
+    ],
+    is_featured: false,
+    is_active: true,
+    sort_order: 6,
+    created_at: new Date(Date.now() - 86400000 * 12).toISOString(),
+  },
+];
