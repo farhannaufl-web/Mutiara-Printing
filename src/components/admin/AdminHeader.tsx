@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
-import { isSupabaseConfigured } from '../../lib/supabase';
+import { isSupabaseConfigured, supabaseDiagnostics } from '../../lib/supabase';
 import { SITE_CONFIG } from '../../config/site';
 import { Package, Users, ExternalLink, LogOut } from 'lucide-react';
 
@@ -21,10 +21,22 @@ export const AdminHeader: React.FC = () => {
           <Link to="/admin/dashboard" className="font-serif text-lg font-bold text-white tracking-tight">
             {SITE_CONFIG.name} <span className="text-amber-400 font-sans text-xs">/ Admin</span>
           </Link>
-          <span className="hidden sm:inline-block rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">
-            {isSupabaseConfigured ? 'Supabase Live' : 'Local Sandbox Mode'}
-          </span>
+          {isSupabaseConfigured ? (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-medium text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span>Supabase Live ({supabaseDiagnostics.urlSource})</span>
+            </span>
+          ) : (
+            <span
+              title={`Pemicu Sandbox Mode:\n${supabaseDiagnostics.sandboxReasons.join('\n')}`}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-medium text-amber-300 cursor-help"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              <span>Sandbox Mode ({supabaseDiagnostics.sandboxReasons.length} kondisi terpicu)</span>
+            </span>
+          )}
         </div>
+
 
         <div className="flex items-center gap-2 sm:gap-3 text-xs">
           <span className="hidden md:inline text-slate-400">{userEmail}</span>

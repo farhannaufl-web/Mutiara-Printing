@@ -1,15 +1,26 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, loadEnv} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({mode}) => {
+  const env = loadEnv(mode, process.cwd(), '');
+
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
+    },
+    define: {
+      // Expose fallback non-VITE_ variables to import.meta.env if provided in environment
+      'import.meta.env.SUPABASE_URL': JSON.stringify(
+        env.SUPABASE_URL || process.env.SUPABASE_URL || ''
+      ),
+      'import.meta.env.SUPABASE_ANON_KEY': JSON.stringify(
+        env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
+      ),
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

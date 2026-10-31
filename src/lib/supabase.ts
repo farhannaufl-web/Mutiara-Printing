@@ -2,21 +2,131 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { Product, WAClick, AdminStats, Client, ClientLogo } from '../types';
 import { DEMO_PRODUCTS } from './demoData';
 
-// Read env variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// -----------------------------------------------------------------------
+// Supabase Environment Resolution & Detailed Diagnostics
+// -----------------------------------------------------------------------
 
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl && 
-  supabaseAnonKey && 
-  !supabaseUrl.includes('placeholder') &&
-  supabaseUrl.startsWith('https://')
-);
+export interface SupabaseConfigDiagnostics {
+  isConfigured: boolean;
+  urlSource: 'VITE_SUPABASE_URL' | 'SUPABASE_URL' | 'none';
+  keySource: 'VITE_SUPABASE_ANON_KEY' | 'SUPABASE_ANON_KEY' | 'none';
+  resolvedUrl: string;
+  maskedKey: string;
+  triggersSandbox: boolean;
+  sandboxReasons: string[];
+}
+
+function resolveSupabaseEnv(): {
+  url: string;
+  anonKey: string;
+  diagnostics: SupabaseConfigDiagnostics;
+} {
+  const env = import.meta.env as Record<string, unknown>;
+
+  // 1. Read URL (VITE_SUPABASE_URL prioritized, fallback to SUPABASE_URL)
+  let url = '';
+  let urlSource: 'VITE_SUPABASE_URL' | 'SUPABASE_URL' | 'none' = 'none';
+
+  if (typeof env.VITE_SUPABASE_URL === 'string' && env.VITE_SUPABASE_URL.trim() !== '') {
+    url = env.VITE_SUPABASE_URL.trim();
+    urlSource = 'VITE_SUPABASE_URL';
+  } else if (typeof env.SUPABASE_URL === 'string' && env.SUPABASE_URL.trim() !== '') {
+    url = env.SUPABASE_URL.trim();
+    urlSource = 'SUPABASE_URL';
+  }
+
+  // 2. Read Anon Key (VITE_SUPABASE_ANON_KEY prioritized, fallback to SUPABASE_ANON_KEY)
+  let anonKey = '';
+  let keySource: 'VITE_SUPABASE_ANON_KEY' | 'SUPABASE_ANON_KEY' | 'none' = 'none';
+
+  if (typeof env.VITE_SUPABASE_ANON_KEY === 'string' && env.VITE_SUPABASE_ANON_KEY.trim() !== '') {
+    anonKey = env.VITE_SUPABASE_ANON_KEY.trim();
+    keySource = 'VITE_SUPABASE_ANON_KEY';
+  } else if (typeof env.SUPABASE_ANON_KEY === 'string' && env.SUPABASE_ANON_KEY.trim() !== '') {
+    anonKey = env.SUPABASE_ANON_KEY.trim();
+    keySource = 'SUPABASE_ANON_KEY';
+  }
+
+  // 3. Evaluate exact conditions that trigger sandbox mode
+  const sandboxReasons: string[] = [];
+
+  if (!url) {
+    sandboxReasons.push(
+      'Variabel URL Supabase (VITE_SUPABASE_URL atau SUPABASE_URL) kosong atau tidak terdefinisi di environment.'
+    );
+  } else {
+    const isHttp = url.startsWith('http://') || url.startsWith('https://');
+    if (!isHttp) {
+      sandboxReasons.push(
+        `URL Supabase "${url}" tidak valid karena tidak diawali dengan "https://" (atau "http://" untuk lokal).`
+      );
+    }
+    if (url.includes('placeholder') || url.includes('your-project-id')) {
+      sandboxReasons.push(
+        `URL Supabase "${url}" masih menggunakan nilai placeholder bawaan template.`
+      );
+    }
+  }
+
+  if (!anonKey) {
+    sandboxReasons.push(
+      'Variabel Anon Key (VITE_SUPABASE_ANON_KEY atau SUPABASE_ANON_KEY) kosong atau tidak terdefinisi di environment.'
+    );
+  } else if (anonKey.includes('placeholder') || anonKey.includes('your-anon-public-key')) {
+    sandboxReasons.push(
+      'Anon Key Supabase masih menggunakan nilai placeholder bawaan template.'
+    );
+  }
+
+  const triggersSandbox = sandboxReasons.length > 0;
+  const isConfigured = !triggersSandbox;
+
+  const maskedKey = anonKey
+    ? `${anonKey.substring(0, 6)}...${anonKey.substring(anonKey.length - 4)}`
+    : '(kosong)';
+
+  const diagnostics: SupabaseConfigDiagnostics = {
+    isConfigured,
+    urlSource,
+    keySource,
+    resolvedUrl: url || '(kosong)',
+    maskedKey,
+    triggersSandbox,
+    sandboxReasons,
+  };
+
+  // 4. Console feedback: loud and clear error messaging, never silent!
+  if (triggersSandbox) {
+    console.error(
+      `%c[Mutiara Printing - Supabase Config Error]%c\nKoneksi Supabase TIDAK aktif.\nAplikasi beralih ke 'Local Sandbox Mode' karena kondisi berikut:\n${sandboxReasons
+        .map((r, i) => `  ${i + 1}. ${r}`)
+        .join('\n')}\n\nCara Memperbaiki:\n1. Buka file .env dan pastikan:\n   VITE_SUPABASE_URL=https://[project-id].supabase.co\n   VITE_SUPABASE_ANON_KEY=[anon-public-key]\n2. Atau setel SUPABASE_URL & SUPABASE_ANON_KEY pada environment hosting Anda.\n3. Simpan dan restart dev server/rebuild agar terbaca.`,
+      'background: #7f1d1d; color: #fecaca; font-weight: bold; padding: 4px 8px; border-radius: 4px;',
+      'color: #f87171; font-weight: normal;'
+    );
+  } else {
+    console.log(
+      `%c[Supabase Connected]%c Menggunakan ${urlSource}: ${url} dan ${keySource}: ${maskedKey}`,
+      'background: #064e3b; color: #a7f3d0; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+      'color: #34d399;'
+    );
+  }
+
+  return { url, anonKey, diagnostics };
+}
+
+const envResolution = resolveSupabaseEnv();
+
+export const supabaseUrl = envResolution.url;
+export const supabaseAnonKey = envResolution.anonKey;
+export const isSupabaseConfigured = envResolution.diagnostics.isConfigured;
+export const supabaseDiagnostics = envResolution.diagnostics;
 
 // Initialize Supabase client
 export const supabase = isSupabaseConfigured
   ? createSupabaseClient(supabaseUrl, supabaseAnonKey)
   : null;
+
 
 
 // Local storage fallback keys for seamless demo testing & local offline edits

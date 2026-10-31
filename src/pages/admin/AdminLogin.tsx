@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAdminAuth } from '../../context/AdminAuthContext';
-import { isSupabaseConfigured } from '../../lib/supabase';
+import { isSupabaseConfigured, supabaseDiagnostics } from '../../lib/supabase';
 import { SITE_CONFIG } from '../../config/site';
+
 import { Award, Lock, Mail, Key, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 export const AdminLogin: React.FC = () => {
@@ -71,17 +72,29 @@ export const AdminLogin: React.FC = () => {
           {/* Supabase status notice */}
           <div className="mt-5 rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-400">
             <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-medium">Status Database:</span>
-              <span className={isSupabaseConfigured ? 'text-emerald-400' : 'text-amber-400'}>
-                {isSupabaseConfigured ? 'Supabase Terhubung' : 'Demo Mode (Lokal Aktif)'}
+              <span className="text-slate-300 font-medium">Status Koneksi Supabase:</span>
+              <span className={`font-semibold ${isSupabaseConfigured ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {isSupabaseConfigured
+                  ? `Terhubung (${supabaseDiagnostics.urlSource})`
+                  : 'Sandbox Mode (Lokal)'}
               </span>
             </div>
+
             {!isSupabaseConfigured && (
-              <p className="mt-1 text-[11px] text-slate-400">
-                Gunakan kredensial demo untuk mencoba panel admin tanpa konfigurasi Supabase awal.
-              </p>
+              <div className="mt-2 space-y-1.5 border-t border-slate-800/80 pt-2 text-[11px]">
+                <p className="font-medium text-amber-300">Pemicu Sandbox Mode:</p>
+                <ul className="list-disc pl-4 space-y-0.5 text-slate-300">
+                  {supabaseDiagnostics.sandboxReasons.map((reason, idx) => (
+                    <li key={idx}>{reason}</li>
+                  ))}
+                </ul>
+                <p className="pt-1 text-[10px] text-slate-400">
+                  Periksa DevTools Console (F12) untuk log diagnostik detail. Anda tetap bisa masuk menggunakan akun demo di bawah.
+                </p>
+              </div>
             )}
           </div>
+
 
           {/* Error notice */}
           {errorMsg && (
