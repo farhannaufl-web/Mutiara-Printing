@@ -43,11 +43,15 @@ export interface AdminStats {
   }[];
 }
 
-export interface ClientLogo {
+export interface Client {
   id: string;
   name: string;
-  logo_url?: string;
-  sort_order?: number;
-  is_active?: boolean;
+  logo_url: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
 }
+
+export type ClientLogo = Client;
+
 

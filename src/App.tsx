@@ -19,6 +19,8 @@ import { ContactPage } from './pages/ContactPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminLogin } from './pages/admin/AdminLogin';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminClients } from './pages/admin/AdminClients';
+
 
 // Automatically scroll window to top on route navigation
 const ScrollToTop: React.FC = () => {
@@ -85,6 +87,8 @@ export default function App() {
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/klien" element={<AdminClients />} />
+
 
             {/* 404 Fallback */}
             <Route

@@ -1,7 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
-import { Product, WAClick, AdminStats, ClientLogo } from '../types';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { Product, WAClick, AdminStats, Client, ClientLogo } from '../types';
 import { DEMO_PRODUCTS } from './demoData';
-
 
 // Read env variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -16,8 +15,9 @@ export const isSupabaseConfigured = Boolean(
 
 // Initialize Supabase client
 export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createSupabaseClient(supabaseUrl, supabaseAnonKey)
   : null;
+
 
 // Local storage fallback keys for seamless demo testing & local offline edits
 const LOCAL_PRODUCTS_KEY = 'mutiara_local_products_v1';
@@ -412,74 +412,377 @@ export async function uploadProductImage(file: File): Promise<string> {
   });
 }
 
-// Default Client Logos (Infobank, PNM, Pertamina requested by user, plus additional corporate clients)
-export const DEFAULT_CLIENTS: ClientLogo[] = [
+// -----------------------------------------------------------------------
+// Client Management Service (Table 'clients' & Storage 'product-images/clients/')
+// -----------------------------------------------------------------------
+
+const LOCAL_CLIENTS_KEY = 'mutiara_clients_data_v2';
+
+export const INITIAL_CLIENT_SEEDS: Omit<Client, 'id' | 'created_at'>[] = [
   {
-    id: 'client-infobank',
     name: 'Infobank',
+    logo_url: null,
     sort_order: 1,
     is_active: true,
   },
   {
-    id: 'client-pnm',
     name: 'PNM',
+    logo_url: null,
     sort_order: 2,
     is_active: true,
   },
   {
-    id: 'client-pertamina',
     name: 'Pertamina',
+    logo_url: null,
     sort_order: 3,
-    is_active: true,
-  },
-  {
-    id: 'client-mandiri',
-    name: 'Bank Mandiri',
-    sort_order: 4,
-    is_active: true,
-  },
-  {
-    id: 'client-bni',
-    name: 'BNI',
-    sort_order: 5,
-    is_active: true,
-  },
-  {
-    id: 'client-telkom',
-    name: 'Telkom Indonesia',
-    sort_order: 6,
     is_active: true,
   },
 ];
 
-// Fetch Client Logos (from Supabase table 'clients', with local fallback)
-export async function fetchClients(): Promise<ClientLogo[]> {
+function getLocalClients(): Client[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_CLIENTS_KEY);
+    if (!raw) {
+      const initial: Client[] = INITIAL_CLIENT_SEEDS.map((s, idx) => ({
+        ...s,
+        id: `client_seed_${idx + 1}`,
+        created_at: new Date(Date.now() - idx * 3600000).toISOString(),
+      }));
+      localStorage.setItem(LOCAL_CLIENTS_KEY, JSON.stringify(initial));
+      return initial;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalClients(clients: Client[]): void {
+  try {
+    localStorage.setItem(LOCAL_CLIENTS_KEY, JSON.stringify(clients));
+  } catch (e) {
+    console.error('Failed to save clients locally', e);
+  }
+}
+
+/**
+ * Fetch clients from Supabase table 'clients' (with fallback to Infobank, PNM, Pertamina default seed)
+ */
+export async function fetchClients(includeInactive = false): Promise<Client[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      let query = supabase
+        .from('clients')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false });
+
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        return data as Client[];
+      }
+    } catch {
+      // Fall through to local fallback if offline or table not ready
+    }
+  }
+
+  let items = getLocalClients();
+  if (items.length === 0) {
+    items = INITIAL_CLIENT_SEEDS.map((s, idx) => ({
+      ...s,
+      id: `client_seed_${idx + 1}`,
+      created_at: new Date(Date.now() - idx * 3600000).toISOString(),
+    }));
+  }
+
+  if (!includeInactive) {
+    items = items.filter((c) => c.is_active);
+  }
+  items.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return items;
+}
+
+
+/**
+ * Client-side image compression preserving transparency (PNG/WebP, max width 600px)
+ */
+export async function compressLogoImage(
+  file: File,
+  maxWidth = 600,
+  quality = 0.88
+): Promise<{ blob: Blob; mimeType: string; extension: string }> {
+  return new Promise((resolve, reject) => {
+    // If SVG vector, preserve directly
+    if (file.type === 'image/svg+xml') {
+      return resolve({ blob: file, mimeType: 'image/svg+xml', extension: 'svg' });
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas context unavailable'));
+
+        // Clear transparent canvas for transparency preservation
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Try webp first; if transparent, WebP supports alpha. Fallback to image/png
+        const targetFormat = file.type === 'image/png' ? 'image/png' : 'image/webp';
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve({
+                blob,
+                mimeType: targetFormat,
+                extension: targetFormat === 'image/png' ? 'png' : 'webp',
+              });
+            } else {
+              canvas.toBlob(
+                (fallbackBlob) => {
+                  if (fallbackBlob) {
+                    resolve({ blob: fallbackBlob, mimeType: 'image/png', extension: 'png' });
+                  } else {
+                    reject(new Error('Gagal mengompresi logo'));
+                  }
+                },
+                'image/png'
+              );
+            }
+          },
+          targetFormat,
+          quality
+        );
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
+/**
+ * Upload logo file to Supabase Storage bucket 'product-images' under 'clients/{timestamp}-{filename}'
+ */
+export async function uploadClientLogo(file: File): Promise<string> {
+  const { blob, mimeType, extension } = await compressLogoImage(file, 600, 0.88);
+  const cleanBaseName = file.name
+    .replace(/\.[^/.]+$/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_');
+  const filePath = `clients/${Date.now()}-${cleanBaseName}.${extension}`;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, blob, {
+          contentType: mimeType,
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(data.path);
+
+      return publicUrlData.publicUrl;
+    } catch (e) {
+      console.warn('Supabase client logo upload error, saving local data URL:', e);
+    }
+  }
+
+  // Fallback to Data URL in sandbox/demo
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Extracts relative storage file path from public Supabase URL
+ */
+export function extractStoragePath(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const marker = '/product-images/';
+    const idx = url.indexOf(marker);
+    if (idx !== -1) {
+      return decodeURIComponent(url.substring(idx + marker.length));
+    }
+    if (url.startsWith('clients/')) {
+      return url;
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Create a new client entry
+ */
+export async function createClient(
+  clientData: Omit<Client, 'id' | 'created_at'>
+): Promise<Client> {
+  const newClient: Client = {
+    ...clientData,
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `client_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    created_at: new Date().toISOString(),
+  };
+
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
         .from('clients')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
+        .insert([
+          {
+            name: clientData.name,
+            logo_url: clientData.logo_url || null,
+            sort_order: clientData.sort_order ?? 0,
+            is_active: clientData.is_active ?? true,
+          },
+        ])
+        .select()
+        .single();
 
-      if (!error && data && data.length > 0) {
-        return data as ClientLogo[];
-      }
+      if (error) throw error;
+      return data as Client;
     } catch (e) {
-      console.warn('Failed to fetch clients from Supabase, using defaults:', e);
+      console.warn('Supabase createClient error, saving locally:', e);
     }
   }
 
-  try {
-    const raw = localStorage.getItem('mutiara_clients_v1');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+  const items = getLocalClients();
+  items.push(newClient);
+  saveLocalClients(items);
+  return newClient;
+}
+
+/**
+ * Update an existing client
+ */
+export async function updateClient(id: string, updates: Partial<Client>): Promise<Client> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as Client;
+    } catch (e) {
+      console.warn('Supabase updateClient error, updating locally:', e);
+    }
+  }
+
+  const items = getLocalClients();
+  const idx = items.findIndex((c) => c.id === id);
+  if (idx === -1) throw new Error('Klien tidak ditemukan');
+  items[idx] = { ...items[idx], ...updates };
+  saveLocalClients(items);
+  return items[idx];
+}
+
+/**
+ * Delete a client and delete its logo file from storage
+ */
+export async function deleteClient(id: string, logoUrl?: string | null): Promise<void> {
+  // 1. Delete logo file from storage if present
+  if (logoUrl) {
+    const storagePath = extractStoragePath(logoUrl);
+    if (storagePath && isSupabaseConfigured && supabase) {
+      try {
+        await supabase.storage.from('product-images').remove([storagePath]);
+      } catch (err) {
+        console.warn('Failed to delete client logo from storage:', err);
       }
     }
-  } catch {}
+  }
 
-  return DEFAULT_CLIENTS;
+  // 2. Delete row from 'clients' table
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('clients').delete().eq('id', id);
+      if (error) throw error;
+      return;
+    } catch (e) {
+      console.warn('Supabase deleteClient error, deleting locally:', e);
+    }
+  }
+
+  const items = getLocalClients();
+  const filtered = items.filter((c) => c.id !== id);
+  saveLocalClients(filtered);
 }
+
+/**
+ * Bulk create multiple clients (for bulk upload)
+ */
+export async function bulkCreateClients(
+  clientsData: Array<Omit<Client, 'id' | 'created_at'>>
+): Promise<Client[]> {
+  if (clientsData.length === 0) return [];
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .insert(
+          clientsData.map((c) => ({
+            name: c.name,
+            logo_url: c.logo_url || null,
+            sort_order: c.sort_order ?? 0,
+            is_active: c.is_active ?? true,
+          }))
+        )
+        .select();
+
+      if (error) throw error;
+      return (data as Client[]) || [];
+    } catch (e) {
+      console.warn('Supabase bulkCreateClients error, saving locally:', e);
+    }
+  }
+
+  const items = getLocalClients();
+  const createdList: Client[] = clientsData.map((c, idx) => ({
+    ...c,
+    id: `client_${Date.now()}_${idx}`,
+    created_at: new Date().toISOString(),
+  }));
+  items.push(...createdList);
+  saveLocalClients(items);
+  return createdList;
+}
+
+/**
+ * Import initial seeds (Infobank, PNM, Pertamina)
+ */
+export async function importInitialClients(): Promise<Client[]> {
+  return bulkCreateClients(INITIAL_CLIENT_SEEDS);
+}
+
 

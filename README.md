@@ -175,11 +175,12 @@ CREATE POLICY "Authenticated users can upload product images"
    - Form penawaran harga cepat yang langsung terhubung ke WhatsApp
    - Jam operasional: 10.00 WIB - 20.00 WIB
 
-5. **Panel Admin (`/admin`)**:
+5. **Panel Admin (`/admin`, `/admin/dashboard`, `/admin/klien`)**:
    - Login admin terproteksi (Supabase Auth / Akun Demo `admin@mutiaraprinting.com` / `admin123`)
    - Dashboard analitik WhatsApp (7 hari & 30 hari terakhir) + Top 5 produk paling banyak ditanyakan
-   - Manajemen produk: Tambah, edit, hapus (dengan dialog konfirmasi), toggle aktif & unggulan
-   - Drag & drop multi-upload foto dengan kompresi otomatis client-side ke WebP/JPEG (max ~1600px)
+   - **Manajemen Produk (`/admin/dashboard`)**: Tambah, edit, hapus (dengan dialog konfirmasi), toggle aktif & unggulan, drag & drop multi-upload foto (WebP/JPEG max ~1600px)
+   - **Manajemen Klien & Running Logo (`/admin/klien`)**: Tambah, edit, hapus (otomatis menghapus file dari storage bucket), toggle aktif, atur urutan, tombol "Import Klien Awal" (Infobank, PNM, Pertamina), dan fitur **Bulk Upload Logo** dengan auto-naming dari file.
+
 
 ---
 

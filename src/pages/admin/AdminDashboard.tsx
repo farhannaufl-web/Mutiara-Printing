@@ -14,6 +14,8 @@ import { Product, AdminStats } from '../../types';
 import { SITE_CONFIG } from '../../config/site';
 import { ProductFormModal } from '../../components/admin/ProductFormModal';
 import { DeleteConfirmModal } from '../../components/admin/DeleteConfirmModal';
+import { AdminHeader } from '../../components/admin/AdminHeader';
+
 import {
   Package,
   Eye,
@@ -184,40 +186,10 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       <div className="min-h-screen bg-[#090E1A] pb-24 text-slate-100">
-        
-        {/* Admin Header Bar */}
-        <header className="border-b border-slate-800 bg-[#0E1626] px-4 py-3 sm:px-6 lg:px-8">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="font-serif text-lg font-bold text-white tracking-tight">
-                {SITE_CONFIG.name} <span className="text-amber-400 font-sans text-xs">/ Admin</span>
-              </span>
-              <span className="hidden sm:inline-block rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">
-                {isSupabaseConfigured ? 'Supabase Live' : 'Local Sandbox Mode'}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs">
-              <span className="hidden md:inline text-slate-400">{userEmail}</span>
-              <button
-                onClick={() => navigate('/')}
-                className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-slate-200 hover:text-white"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                <span>Lihat Website</span>
-              </button>
-              <button
-                onClick={logout}
-                className="flex items-center gap-1 rounded-lg border border-red-900/40 bg-red-950/40 px-3 py-1.5 text-red-300 hover:bg-red-900/60"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </header>
+        <AdminHeader />
 
         <main className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8 space-y-8">
+
           
           {/* Dashboard Summary Statistics */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">

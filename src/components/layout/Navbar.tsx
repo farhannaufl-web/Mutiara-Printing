@@ -11,9 +11,9 @@ export const Navbar: React.FC = () => {
   const navLinks = [
     { label: 'Beranda', path: '/' },
     { label: 'Katalog Produk', path: '/katalog' },
-    { label: 'Cara Order', path: '/#cara-order' },
     { label: 'Tentang & Workshop', path: '/kontak' },
   ];
+
 
   const isActive = (path: string) => {
     if (path.startsWith('/#')) return false;
