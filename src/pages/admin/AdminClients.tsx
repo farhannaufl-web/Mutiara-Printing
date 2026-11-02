@@ -87,8 +87,8 @@ export const AdminClients: React.FC = () => {
       showToast(
         `Klien "${client.name}" ${updated.is_active ? 'diaktifkan di marquee' : 'disembunyikan'}.`
       );
-    } catch {
-      showToast('Gagal mengubah status aktif.', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal mengubah status aktif.', 'error');
     }
   };
 
@@ -101,8 +101,8 @@ export const AdminClients: React.FC = () => {
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       );
       showToast(`Urutan "${client.name}" diperbarui.`);
-    } catch {
-      showToast('Gagal memperbarui urutan.', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal memperbarui urutan.', 'error');
     }
   };
 
@@ -147,8 +147,8 @@ export const AdminClients: React.FC = () => {
       showToast(`Klien "${clientToDelete.name}" beserta logonya berhasil dihapus.`);
       setDeleteModalOpen(false);
       setClientToDelete(null);
-    } catch {
-      showToast('Gagal menghapus klien.', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal menghapus klien.', 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -160,8 +160,8 @@ export const AdminClients: React.FC = () => {
       const imported = await importInitialClients();
       setClients((prev) => [...prev, ...imported]);
       showToast('Klien awal (Infobank, PNM, Pertamina) berhasil diimpor!');
-    } catch {
-      showToast('Gagal mengimpor klien awal.', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal mengimpor klien awal.', 'error');
     } finally {
       setIsImporting(false);
     }

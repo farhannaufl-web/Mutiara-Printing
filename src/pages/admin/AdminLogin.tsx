@@ -4,8 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { isSupabaseConfigured, supabaseDiagnostics } from '../../lib/supabase';
 import { SITE_CONFIG } from '../../config/site';
-
-import { Award, Lock, Mail, Key, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { Award, Lock, Mail, Key, AlertCircle, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 
 export const AdminLogin: React.FC = () => {
   const { login, isAuthenticated } = useAdminAuth();
@@ -33,24 +32,19 @@ export const AdminLogin: React.FC = () => {
       if (res.success) {
         navigate('/admin/dashboard', { replace: true });
       } else {
-        setErrorMsg(res.error || 'Autentikasi gagal.');
+        setErrorMsg(res.error || 'Autentikasi Supabase gagal.');
       }
-    } catch {
-      setErrorMsg('Terjadi kesalahan jaringan.');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Terjadi kesalahan jaringan.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleFillDemo = () => {
-    setEmail('admin@mutiaraprinting.com');
-    setPassword('admin123');
-  };
-
   return (
     <>
       <Helmet>
-        <title>Login Pengelola Katalog – {SITE_CONFIG.name}</title>
+        <title>Login Pengelola – {SITE_CONFIG.name}</title>
       </Helmet>
 
       <div className="flex min-h-[85vh] items-center justify-center px-4 py-12">
@@ -62,45 +56,55 @@ export const AdminLogin: React.FC = () => {
               <Award className="h-6 w-6" />
             </div>
             <h1 className="mt-4 font-serif text-xl sm:text-2xl font-bold text-white">
-              Portal Admin Workshop
+              Portal Admin Mutiara Printing
             </h1>
             <p className="mt-1 text-xs text-slate-400">
-              Kelola katalog plakat, foto produk, dan pantau klik WhatsApp
+              Autentikasi akun admin melalui Supabase Auth
             </p>
           </div>
 
           {/* Supabase status notice */}
           <div className="mt-5 rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-400">
             <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-medium">Status Koneksi Supabase:</span>
-              <span className={`font-semibold ${isSupabaseConfigured ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {isSupabaseConfigured
-                  ? `Terhubung (${supabaseDiagnostics.urlSource})`
-                  : 'Sandbox Mode (Lokal)'}
+              <span className="text-slate-300 font-medium">Status Supabase Auth:</span>
+              <span className={`font-semibold flex items-center gap-1.5 ${isSupabaseConfigured ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {isSupabaseConfigured ? (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Aktif ({supabaseDiagnostics.urlSource})</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Belum Dikonfigurasi</span>
+                  </>
+                )}
               </span>
             </div>
 
             {!isSupabaseConfigured && (
               <div className="mt-2 space-y-1.5 border-t border-slate-800/80 pt-2 text-[11px]">
-                <p className="font-medium text-amber-300">Pemicu Sandbox Mode:</p>
+                <p className="font-medium text-amber-300">Konfigurasi Dibutuhkan:</p>
                 <ul className="list-disc pl-4 space-y-0.5 text-slate-300">
                   {supabaseDiagnostics.sandboxReasons.map((reason, idx) => (
                     <li key={idx}>{reason}</li>
                   ))}
                 </ul>
                 <p className="pt-1 text-[10px] text-slate-400">
-                  Periksa DevTools Console (F12) untuk log diagnostik detail. Anda tetap bisa masuk menggunakan akun demo di bawah.
+                  Pastikan variabel <code className="text-amber-300">VITE_SUPABASE_URL</code> dan <code className="text-amber-300">VITE_SUPABASE_ANON_KEY</code> telah disetel di file <code>.env</code> atau hosting environment.
                 </p>
               </div>
             )}
           </div>
 
-
-          {/* Error notice */}
+          {/* Error notice (Real Supabase Auth error message) */}
           {errorMsg && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-900/50 bg-red-950/40 p-3 text-xs text-red-200">
-              <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
-              <span>{errorMsg}</span>
+            <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-900/50 bg-red-950/40 p-3 text-xs text-red-200">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-semibold block text-red-300">Gagal Masuk:</span>
+                <span className="break-words">{errorMsg}</span>
+              </div>
             </div>
           )}
 
@@ -108,7 +112,7 @@ export const AdminLogin: React.FC = () => {
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
               <label className="block text-xs font-medium text-slate-300">
-                Email Akun Admin
+                Email Terdaftar di Supabase
               </label>
               <div className="relative mt-1">
                 <input
@@ -116,7 +120,7 @@ export const AdminLogin: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@mutiaraprinting.com"
+                  placeholder="admin@domain.com"
                   className="w-full rounded-lg border border-slate-700 bg-slate-900/90 py-2.5 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
                 />
                 <Mail className="absolute left-3 top-3 h-3.5 w-3.5 text-slate-500" />
@@ -125,7 +129,7 @@ export const AdminLogin: React.FC = () => {
 
             <div>
               <label className="block text-xs font-medium text-slate-300">
-                Password
+                Password Supabase
               </label>
               <div className="relative mt-1">
                 <input
@@ -148,27 +152,16 @@ export const AdminLogin: React.FC = () => {
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Memverifikasi...</span>
+                  <span>Memverifikasi ke Supabase...</span>
                 </>
               ) : (
                 <>
                   <Lock className="h-4 w-4" />
-                  <span>Masuk ke Dashboard</span>
+                  <span>Masuk dengan Supabase Auth</span>
                 </>
               )}
             </button>
           </form>
-
-          {/* Quick autofill for demo testing */}
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={handleFillDemo}
-              className="text-xs text-amber-400 hover:text-amber-300 underline font-medium"
-            >
-              Isi Otomatis Akun Demo (admin@mutiaraprinting.com)
-            </button>
-          </div>
 
           <div className="mt-6 border-t border-slate-800 pt-4 text-center">
             <button

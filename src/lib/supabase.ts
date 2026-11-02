@@ -293,71 +293,63 @@ export async function fetchProductBySlug(slug: string): Promise<{ data: Product 
 }
 
 export async function createProduct(productData: Omit<Product, 'id' | 'created_at'>): Promise<Product> {
-  const newProduct: Product = {
-    ...productData,
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prod_${Date.now()}`,
-    created_at: new Date().toISOString(),
-  };
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .insert([productData])
-        .select()
-        .single();
-      if (error) throw error;
-      return data as Product;
-    } catch (e) {
-      console.warn('Supabase create error, saving locally:', e);
-    }
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error(
+      `Operasi ditolak: Koneksi Supabase belum aktif. ${supabaseDiagnostics.sandboxReasons.join(' ')}`
+    );
   }
 
-  const items = getLocalProducts();
-  items.unshift(newProduct);
-  saveLocalProducts(items);
-  return newProduct;
+  const { data, error } = await supabase
+    .from('products')
+    .insert([productData])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[Supabase Error] Gagal menambah produk:', error);
+    throw new Error(`[Supabase ${error.code || 'Error'}] ${error.message}`);
+  }
+
+  return data as Product;
 }
 
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as Product;
-    } catch (e) {
-      console.warn('Supabase update error, saving locally:', e);
-    }
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error(
+      `Operasi ditolak: Koneksi Supabase belum aktif. ${supabaseDiagnostics.sandboxReasons.join(' ')}`
+    );
   }
 
-  const items = getLocalProducts();
-  const index = items.findIndex((p) => p.id === id);
-  if (index === -1) throw new Error('Product not found');
-  items[index] = { ...items[index], ...updates };
-  saveLocalProducts(items);
-  return items[index];
+  const { data, error } = await supabase
+    .from('products')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[Supabase Error] Gagal mengubah produk:', error);
+    throw new Error(`[Supabase ${error.code || 'Error'}] ${error.message}`);
+  }
+
+  return data as Product;
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
-      return;
-    } catch (e) {
-      console.warn('Supabase delete error, deleting locally:', e);
-    }
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error(
+      `Operasi ditolak: Koneksi Supabase belum aktif. ${supabaseDiagnostics.sandboxReasons.join(' ')}`
+    );
   }
 
-  const items = getLocalProducts();
-  const filtered = items.filter((p) => p.id !== id);
-  saveLocalProducts(filtered);
+  const { error } = await supabase.from('products').delete().eq('id', id);
+
+  if (error) {
+    console.error('[Supabase Error] Gagal menghapus produk:', error);
+    throw new Error(`[Supabase ${error.code || 'Error'}] ${error.message}`);
+  }
 }
+
 
 // WhatsApp Click Recording (Fire-and-forget)
 export async function recordWAClickToDatabase(click: WAClick): Promise<void> {
@@ -485,42 +477,36 @@ export async function compressImage(
   });
 }
 
-// Upload image to Supabase Storage or return local Object URL
+// Upload image to Supabase Storage
 export async function uploadProductImage(file: File): Promise<string> {
-  const compressedBlob = await compressImage(file, 1600, 0.82);
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const ext = 'webp';
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      const filePath = `products/${fileName}`;
-
-      const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, compressedBlob, {
-          contentType: 'image/webp',
-          upsert: false,
-        });
-
-      if (error) throw error;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(data.path);
-
-      return publicUrlData.publicUrl;
-    } catch (e) {
-      console.warn('Supabase storage upload failed, using local DataURL:', e);
-    }
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase belum terkonfigurasi. Periksa VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di environment.');
   }
 
-  // Convert to DataURL for offline/local storage preview
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.readAsDataURL(compressedBlob);
-  });
+  const compressedBlob = await compressImage(file, 1600, 0.82);
+  const ext = 'webp';
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+  const filePath = `products/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from('product-images')
+    .upload(filePath, compressedBlob, {
+      contentType: 'image/webp',
+      upsert: false,
+    });
+
+  if (error) {
+    console.error('Supabase Storage Error (uploadProductImage):', error);
+    throw new Error(`[Supabase Storage Error] Gagal upload foto produk: ${error.message}`);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(data.path);
+
+  return publicUrlData.publicUrl;
 }
+
 
 // -----------------------------------------------------------------------
 // Client Management Service (Table 'clients' & Storage 'product-images/clients/')
@@ -694,6 +680,10 @@ export async function compressLogoImage(
  * Upload logo file to Supabase Storage bucket 'product-images' under 'clients/{timestamp}-{filename}'
  */
 export async function uploadClientLogo(file: File): Promise<string> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase belum terkonfigurasi. Periksa VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di environment.');
+  }
+
   const { blob, mimeType, extension } = await compressLogoImage(file, 600, 0.88);
   const cleanBaseName = file.name
     .replace(/\.[^/.]+$/, '')
@@ -701,33 +691,23 @@ export async function uploadClientLogo(file: File): Promise<string> {
     .replace(/[^a-z0-9_-]/g, '_');
   const filePath = `clients/${Date.now()}-${cleanBaseName}.${extension}`;
 
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, blob, {
-          contentType: mimeType,
-          upsert: false,
-        });
+  const { data, error } = await supabase.storage
+    .from('product-images')
+    .upload(filePath, blob, {
+      contentType: mimeType,
+      upsert: false,
+    });
 
-      if (error) throw error;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(data.path);
-
-      return publicUrlData.publicUrl;
-    } catch (e) {
-      console.warn('Supabase client logo upload error, saving local data URL:', e);
-    }
+  if (error) {
+    console.error('Supabase Storage Error (uploadClientLogo):', error);
+    throw new Error(`[Supabase Storage Error] Gagal upload logo klien: ${error.message}`);
   }
 
-  // Fallback to Data URL in sandbox/demo
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.readAsDataURL(blob);
-  });
+  const { data: publicUrlData } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(data.path);
+
+  return publicUrlData.publicUrl;
 }
 
 /**
@@ -754,76 +734,66 @@ export function extractStoragePath(url: string | null | undefined): string | nul
 export async function createClient(
   clientData: Omit<Client, 'id' | 'created_at'>
 ): Promise<Client> {
-  const newClient: Client = {
-    ...clientData,
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `client_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    created_at: new Date().toISOString(),
-  };
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .insert([
-          {
-            name: clientData.name,
-            logo_url: clientData.logo_url || null,
-            sort_order: clientData.sort_order ?? 0,
-            is_active: clientData.is_active ?? true,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as Client;
-    } catch (e) {
-      console.warn('Supabase createClient error, saving locally:', e);
-    }
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
   }
 
-  const items = getLocalClients();
-  items.push(newClient);
-  saveLocalClients(items);
-  return newClient;
+  const { data, error } = await supabase
+    .from('clients')
+    .insert([
+      {
+        name: clientData.name,
+        logo_url: clientData.logo_url || null,
+        sort_order: clientData.sort_order ?? 0,
+        is_active: clientData.is_active ?? true,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Supabase Insert Error (createClient):', error);
+    throw new Error(`[Supabase Error] Gagal menambahkan klien: ${error.message}`);
+  }
+
+  return data as Client;
 }
 
 /**
  * Update an existing client
  */
 export async function updateClient(id: string, updates: Partial<Client>): Promise<Client> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as Client;
-    } catch (e) {
-      console.warn('Supabase updateClient error, updating locally:', e);
-    }
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
   }
 
-  const items = getLocalClients();
-  const idx = items.findIndex((c) => c.id === id);
-  if (idx === -1) throw new Error('Klien tidak ditemukan');
-  items[idx] = { ...items[idx], ...updates };
-  saveLocalClients(items);
-  return items[idx];
+  const { data, error } = await supabase
+    .from('clients')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Supabase Update Error (updateClient):', error);
+    throw new Error(`[Supabase Error] Gagal memperbarui klien: ${error.message}`);
+  }
+
+  return data as Client;
 }
 
 /**
  * Delete a client and delete its logo file from storage
  */
 export async function deleteClient(id: string, logoUrl?: string | null): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
+  }
+
   // 1. Delete logo file from storage if present
   if (logoUrl) {
     const storagePath = extractStoragePath(logoUrl);
-    if (storagePath && isSupabaseConfigured && supabase) {
+    if (storagePath) {
       try {
         await supabase.storage.from('product-images').remove([storagePath]);
       } catch (err) {
@@ -833,19 +803,11 @@ export async function deleteClient(id: string, logoUrl?: string | null): Promise
   }
 
   // 2. Delete row from 'clients' table
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { error } = await supabase.from('clients').delete().eq('id', id);
-      if (error) throw error;
-      return;
-    } catch (e) {
-      console.warn('Supabase deleteClient error, deleting locally:', e);
-    }
+  const { error } = await supabase.from('clients').delete().eq('id', id);
+  if (error) {
+    console.error('Supabase Delete Error (deleteClient):', error);
+    throw new Error(`[Supabase Error] Gagal menghapus klien: ${error.message}`);
   }
-
-  const items = getLocalClients();
-  const filtered = items.filter((c) => c.id !== id);
-  saveLocalClients(filtered);
 }
 
 /**
@@ -856,36 +818,28 @@ export async function bulkCreateClients(
 ): Promise<Client[]> {
   if (clientsData.length === 0) return [];
 
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .insert(
-          clientsData.map((c) => ({
-            name: c.name,
-            logo_url: c.logo_url || null,
-            sort_order: c.sort_order ?? 0,
-            is_active: c.is_active ?? true,
-          }))
-        )
-        .select();
-
-      if (error) throw error;
-      return (data as Client[]) || [];
-    } catch (e) {
-      console.warn('Supabase bulkCreateClients error, saving locally:', e);
-    }
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
   }
 
-  const items = getLocalClients();
-  const createdList: Client[] = clientsData.map((c, idx) => ({
-    ...c,
-    id: `client_${Date.now()}_${idx}`,
-    created_at: new Date().toISOString(),
-  }));
-  items.push(...createdList);
-  saveLocalClients(items);
-  return createdList;
+  const { data, error } = await supabase
+    .from('clients')
+    .insert(
+      clientsData.map((c) => ({
+        name: c.name,
+        logo_url: c.logo_url || null,
+        sort_order: c.sort_order ?? 0,
+        is_active: c.is_active ?? true,
+      }))
+    )
+    .select();
+
+  if (error) {
+    console.error('Supabase Bulk Insert Error (bulkCreateClients):', error);
+    throw new Error(`[Supabase Error] Gagal bulk tambah klien: ${error.message}`);
+  }
+
+  return (data as Client[]) || [];
 }
 
 /**

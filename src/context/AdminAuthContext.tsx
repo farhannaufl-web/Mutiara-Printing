@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, supabaseDiagnostics } from '../lib/supabase';
 
 interface AdminAuthContextType {
   isAuthenticated: boolean;
@@ -11,109 +11,126 @@ interface AdminAuthContextType {
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
 
-const LOCAL_ADMIN_SESSION_KEY = 'mutiara_admin_session_active';
-
 export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Check initial session
+    let isMounted = true;
+
     async function checkSession() {
       try {
-        if (isSupabaseConfigured && supabase) {
-          const { data } = await supabase.auth.getSession();
-          if (data.session?.user) {
-            setIsAuthenticated(true);
-            setUserEmail(data.session.user.email || 'Admin');
+        if (!isSupabaseConfigured || !supabase) {
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setUserEmail(null);
             setLoading(false);
-            return;
           }
+          return;
         }
 
-        // Check local test session
-        const localActive = localStorage.getItem(LOCAL_ADMIN_SESSION_KEY);
-        if (localActive) {
-          setIsAuthenticated(true);
-          setUserEmail(localActive);
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.warn('[Supabase Auth] Failed to retrieve session:', error.message);
+        }
+
+        if (isMounted) {
+          if (data?.session?.user) {
+            setIsAuthenticated(true);
+            setUserEmail(data.session.user.email || 'Admin');
+          } else {
+            setIsAuthenticated(false);
+            setUserEmail(null);
+          }
+          setLoading(false);
         }
       } catch (err) {
-        console.error('Session check error', err);
-      } finally {
-        setLoading(false);
+        console.error('[Supabase Auth] Session verification error:', err);
+        if (isMounted) {
+          setIsAuthenticated(false);
+          setUserEmail(null);
+          setLoading(false);
+        }
       }
     }
 
     checkSession();
 
-    // Listen to Supabase auth state if configured
+    // Listen to Supabase Auth State changes in realtime
     if (isSupabaseConfigured && supabase) {
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!isMounted) return;
         if (session?.user) {
           setIsAuthenticated(true);
           setUserEmail(session.user.email || 'Admin');
         } else {
-          const localActive = localStorage.getItem(LOCAL_ADMIN_SESSION_KEY);
-          if (!localActive) {
-            setIsAuthenticated(false);
-            setUserEmail(null);
-          }
+          setIsAuthenticated(false);
+          setUserEmail(null);
         }
       });
+
       return () => {
+        isMounted = false;
         subscription.unsubscribe();
       };
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
+  /**
+   * Real Supabase Auth login using supabase.auth.signInWithPassword
+   * Strictly no local fallback or hardcoded passwords.
+   */
   const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
-    // If Supabase is configured, use real Supabase Auth
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password: pass,
-        });
-        if (error) {
-          return { success: false, error: error.message };
-        }
-        if (data.user) {
-          setIsAuthenticated(true);
-          setUserEmail(data.user.email || email);
-          return { success: true };
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Login failed';
-        return { success: false, error: message };
+    if (!isSupabaseConfigured || !supabase) {
+      const reason = supabaseDiagnostics.sandboxReasons[0] || 'Koneksi database belum disetel.';
+      return {
+        success: false,
+        error: `Supabase belum terkonfigurasi (${reason}). Pastikan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY telah diisi di environment.`,
+      };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: pass,
+      });
+
+      if (error) {
+        // Return exact error message from Supabase Auth
+        return { success: false, error: error.message };
       }
-    }
 
-    // Fallback authentication for setup and demo validation
-    // Standard credential or demo admin
-    if (
-      (email === 'admin@mutiaraprinting.com' && pass === 'admin123') ||
-      (email.includes('@') && pass.length >= 6)
-    ) {
-      localStorage.setItem(LOCAL_ADMIN_SESSION_KEY, email);
-      setIsAuthenticated(true);
-      setUserEmail(email);
-      return { success: true };
-    }
+      if (data?.user) {
+        setIsAuthenticated(true);
+        setUserEmail(data.user.email || email);
+        return { success: true };
+      }
 
-    return {
-      success: false,
-      error: 'Email atau password salah. Gunakan admin@mutiaraprinting.com / admin123 untuk akses demo.',
-    };
+      return { success: false, error: 'User tidak ditemukan atau sesi tidak dapat dibuat.' };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kegagalan saat autentikasi ke Supabase.';
+      return { success: false, error: message };
+    }
   };
 
+  /**
+   * Sign out strictly through Supabase Auth
+   */
   const logout = async () => {
     if (isSupabaseConfigured && supabase) {
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error('[Supabase Auth] Sign out error:', err);
+      }
     }
-    localStorage.removeItem(LOCAL_ADMIN_SESSION_KEY);
     setIsAuthenticated(false);
     setUserEmail(null);
   };

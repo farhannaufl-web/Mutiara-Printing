@@ -97,8 +97,8 @@ export const AdminDashboard: React.FC = () => {
       );
       // Refresh stats
       fetchAdminStats().then(setStats);
-    } catch {
-      showToast('Gagal mengubah status aktif produk.', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal mengubah status aktif produk.', 'error');
     }
   };
 
@@ -107,8 +107,8 @@ export const AdminDashboard: React.FC = () => {
       const updated = await updateProduct(product.id, { is_featured: !product.is_featured });
       setProducts((prev) => prev.map((p) => (p.id === product.id ? updated : p)));
       showToast(`Status unggulan "${product.title}" diperbarui.`);
-    } catch {
-      showToast('Gagal mengubah status unggulan.', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal mengubah status unggulan.', 'error');
     }
   };
 
@@ -150,8 +150,8 @@ export const AdminDashboard: React.FC = () => {
       setDeleteModalOpen(false);
       setProductToDelete(null);
       fetchAdminStats().then(setStats);
-    } catch {
-      showToast('Gagal menghapus produk.', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal menghapus produk.', 'error');
     } finally {
       setIsDeleting(false);
     }
