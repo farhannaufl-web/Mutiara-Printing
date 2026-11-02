@@ -61,7 +61,8 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
         setName(cleanName);
       }
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Gagal mengunggah logo');
+      const code = (err as { code?: string })?.code ? `[Kode: ${(err as { code?: string }).code}] ` : '';
+      setErrorMsg(`${code}${err instanceof Error ? err.message : 'Gagal mengunggah logo'}`);
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -91,7 +92,8 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
       });
       onClose();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Gagal menyimpan data klien');
+      const code = (err as { code?: string })?.code ? `[Kode: ${(err as { code?: string }).code}] ` : '';
+      setErrorMsg(`${code}${err instanceof Error ? err.message : 'Gagal menyimpan data klien'}`);
     } finally {
       setSaving(false);
     }

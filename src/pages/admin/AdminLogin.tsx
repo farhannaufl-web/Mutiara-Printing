@@ -86,7 +86,7 @@ export const AdminLogin: React.FC = () => {
               <div className="mt-2 space-y-1.5 border-t border-slate-800/80 pt-2 text-[11px]">
                 <p className="font-medium text-amber-300">Konfigurasi Dibutuhkan:</p>
                 <ul className="list-disc pl-4 space-y-0.5 text-slate-300">
-                  {supabaseDiagnostics.sandboxReasons.map((reason, idx) => (
+                  {supabaseDiagnostics.configErrors.map((reason, idx) => (
                     <li key={idx}>{reason}</li>
                   ))}
                 </ul>

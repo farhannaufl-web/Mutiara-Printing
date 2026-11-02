@@ -1,9 +1,8 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { Product, WAClick, AdminStats, Client, ClientLogo } from '../types';
-import { DEMO_PRODUCTS } from './demoData';
+import { Product, WAClick, AdminStats, Client } from '../types';
 
 // -----------------------------------------------------------------------
-// Supabase Environment Resolution & Detailed Diagnostics
+// Supabase Environment Resolution & Diagnostics
 // -----------------------------------------------------------------------
 
 export interface SupabaseConfigDiagnostics {
@@ -12,8 +11,7 @@ export interface SupabaseConfigDiagnostics {
   keySource: 'VITE_SUPABASE_ANON_KEY' | 'SUPABASE_ANON_KEY' | 'none';
   resolvedUrl: string;
   maskedKey: string;
-  triggersSandbox: boolean;
-  sandboxReasons: string[];
+  configErrors: string[];
 }
 
 function resolveSupabaseEnv(): {
@@ -47,39 +45,38 @@ function resolveSupabaseEnv(): {
     keySource = 'SUPABASE_ANON_KEY';
   }
 
-  // 3. Evaluate exact conditions that trigger sandbox mode
-  const sandboxReasons: string[] = [];
+  // 3. Evaluate configuration requirements
+  const configErrors: string[] = [];
 
   if (!url) {
-    sandboxReasons.push(
+    configErrors.push(
       'Variabel URL Supabase (VITE_SUPABASE_URL atau SUPABASE_URL) kosong atau tidak terdefinisi di environment.'
     );
   } else {
     const isHttp = url.startsWith('http://') || url.startsWith('https://');
     if (!isHttp) {
-      sandboxReasons.push(
+      configErrors.push(
         `URL Supabase "${url}" tidak valid karena tidak diawali dengan "https://" (atau "http://" untuk lokal).`
       );
     }
     if (url.includes('placeholder') || url.includes('your-project-id')) {
-      sandboxReasons.push(
+      configErrors.push(
         `URL Supabase "${url}" masih menggunakan nilai placeholder bawaan template.`
       );
     }
   }
 
   if (!anonKey) {
-    sandboxReasons.push(
+    configErrors.push(
       'Variabel Anon Key (VITE_SUPABASE_ANON_KEY atau SUPABASE_ANON_KEY) kosong atau tidak terdefinisi di environment.'
     );
   } else if (anonKey.includes('placeholder') || anonKey.includes('your-anon-public-key')) {
-    sandboxReasons.push(
+    configErrors.push(
       'Anon Key Supabase masih menggunakan nilai placeholder bawaan template.'
     );
   }
 
-  const triggersSandbox = sandboxReasons.length > 0;
-  const isConfigured = !triggersSandbox;
+  const isConfigured = configErrors.length === 0;
 
   const maskedKey = anonKey
     ? `${anonKey.substring(0, 6)}...${anonKey.substring(anonKey.length - 4)}`
@@ -91,16 +88,14 @@ function resolveSupabaseEnv(): {
     keySource,
     resolvedUrl: url || '(kosong)',
     maskedKey,
-    triggersSandbox,
-    sandboxReasons,
+    configErrors,
   };
 
-  // 4. Console feedback: loud and clear error messaging, never silent!
-  if (triggersSandbox) {
+  if (!isConfigured) {
     console.error(
-      `%c[Mutiara Printing - Supabase Config Error]%c\nKoneksi Supabase TIDAK aktif.\nAplikasi beralih ke 'Local Sandbox Mode' karena kondisi berikut:\n${sandboxReasons
+      `%c[Mutiara Printing - Supabase Config Error]%c\nKoneksi Supabase TIDAK aktif:\n${configErrors
         .map((r, i) => `  ${i + 1}. ${r}`)
-        .join('\n')}\n\nCara Memperbaiki:\n1. Buka file .env dan pastikan:\n   VITE_SUPABASE_URL=https://[project-id].supabase.co\n   VITE_SUPABASE_ANON_KEY=[anon-public-key]\n2. Atau setel SUPABASE_URL & SUPABASE_ANON_KEY pada environment hosting Anda.\n3. Simpan dan restart dev server/rebuild agar terbaca.`,
+        .join('\n')}\n\nPeriksa VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di file .env Anda.`,
       'background: #7f1d1d; color: #fecaca; font-weight: bold; padding: 4px 8px; border-radius: 4px;',
       'color: #f87171; font-weight: normal;'
     );
@@ -127,69 +122,29 @@ export const supabase = isSupabaseConfigured
   ? createSupabaseClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-
-
-// Local storage fallback keys for seamless demo testing & local offline edits
-const LOCAL_PRODUCTS_KEY = 'mutiara_local_products_v1';
-const LOCAL_CLICKS_KEY = 'mutiara_local_wa_clicks_v1';
-
-function getLocalProducts(): Product[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_PRODUCTS_KEY);
-    if (!raw) {
-      localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(DEMO_PRODUCTS));
-      return DEMO_PRODUCTS;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEMO_PRODUCTS;
-  } catch {
-    return DEMO_PRODUCTS;
+/**
+ * Helper to throw an enhanced Error carrying Supabase error code
+ */
+function createSupabaseError(error: { message: string; code?: string }): Error & { code?: string } {
+  const err = new Error(error.message) as Error & { code?: string };
+  if (error.code) {
+    err.code = error.code;
   }
+  return err;
 }
 
-function saveLocalProducts(products: Product[]): void {
-  try {
-    localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(products));
-  } catch (e) {
-    console.error('Failed to save products to localStorage', e);
+function ensureSupabase() {
+  if (!isSupabaseConfigured || !supabase) {
+    const reason = supabaseDiagnostics.configErrors[0] || 'Koneksi Supabase belum aktif.';
+    const err = new Error(`Supabase belum terkonfigurasi: ${reason}`) as Error & { code?: string };
+    err.code = 'CONFIG_MISSING';
+    throw err;
   }
-}
-
-function getLocalClicks(): WAClick[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_CLICKS_KEY);
-    if (!raw) {
-      // Seed some realistic clicks for the admin dashboard view
-      const demoClicks: WAClick[] = [
-        { id: '1', product_id: 'demo-1', source: 'product_detail', created_at: new Date(Date.now() - 3600000 * 4).toISOString() },
-        { id: '2', product_id: 'demo-1', source: 'home_hero', created_at: new Date(Date.now() - 3600000 * 12).toISOString() },
-        { id: '3', product_id: 'demo-2', source: 'product_card', created_at: new Date(Date.now() - 3600000 * 24).toISOString() },
-        { id: '4', product_id: 'demo-3', source: 'product_detail', created_at: new Date(Date.now() - 3600000 * 48).toISOString() },
-        { id: '5', product_id: 'demo-2', source: 'product_card', created_at: new Date(Date.now() - 3600000 * 72).toISOString() },
-        { id: '6', product_id: 'demo-4', source: 'floating', created_at: new Date(Date.now() - 3600000 * 96).toISOString() },
-        { id: '7', product_id: 'demo-1', source: 'catalog_card', created_at: new Date(Date.now() - 3600000 * 120).toISOString() },
-      ];
-      localStorage.setItem(LOCAL_CLICKS_KEY, JSON.stringify(demoClicks));
-      return demoClicks;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalClick(click: WAClick): void {
-  try {
-    const current = getLocalClicks();
-    current.unshift(click);
-    localStorage.setItem(LOCAL_CLICKS_KEY, JSON.stringify(current.slice(0, 500)));
-  } catch (e) {
-    console.error('Failed to save click', e);
-  }
+  return supabase;
 }
 
 // -----------------------------------------------------------------------
-// Data Service Methods
+// Products Data Service (Strict Supabase Database & Storage)
 // -----------------------------------------------------------------------
 
 export interface FetchProductsOptions {
@@ -204,123 +159,84 @@ export interface FetchProductsOptions {
 export async function fetchProducts(options: FetchProductsOptions = {}): Promise<{
   data: Product[];
   total: number;
-  isMock: boolean;
 }> {
+  const client = ensureSupabase();
   const { category, featuredOnly, search, limit = 50, offset = 0, includeInactive = false } = options;
 
-  if (isSupabaseConfigured && supabase) {
-    try {
-      let query = supabase.from('products').select('*', { count: 'exact' });
+  let query = client.from('products').select('*', { count: 'exact' });
 
-      if (!includeInactive) {
-        query = query.eq('is_active', true);
-      }
-      if (category && category !== 'all') {
-        query = query.eq('category', category);
-      }
-      if (featuredOnly) {
-        query = query.eq('is_featured', true);
-      }
-      if (search && search.trim()) {
-        query = query.ilike('title', `%${search.trim()}%`);
-      }
-
-      query = query
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      const { data, count, error } = await query;
-      if (error) {
-        console.warn('Supabase fetch error, using local fallback:', error.message);
-        throw error;
-      }
-      if (data && data.length > 0) {
-        return { data: data as Product[], total: count ?? data.length, isMock: false };
-      }
-    } catch {
-      // Fall through to local fallback
-    }
-  }
-
-  // Local storage fallback
-  let items = getLocalProducts();
   if (!includeInactive) {
-    items = items.filter((p) => p.is_active);
+    query = query.eq('is_active', true);
   }
   if (category && category !== 'all') {
-    items = items.filter((p) => p.category.toLowerCase() === category.toLowerCase());
+    query = query.eq('category', category);
   }
   if (featuredOnly) {
-    items = items.filter((p) => p.is_featured);
+    query = query.eq('is_featured', true);
   }
   if (search && search.trim()) {
-    const s = search.toLowerCase();
-    items = items.filter(
-      (p) =>
-        p.title.toLowerCase().includes(s) ||
-        p.description.toLowerCase().includes(s) ||
-        p.material.toLowerCase().includes(s)
-    );
+    query = query.ilike('title', `%${search.trim()}%`);
   }
 
-  items.sort((a, b) => a.sort_order - b.sort_order || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const total = items.length;
-  const paginated = items.slice(offset, offset + limit);
+  query = query
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
-  return { data: paginated, total, isMock: true };
+  const { data, count, error } = await query;
+  if (error) {
+    console.error('[Supabase Fetch Products Error]:', error);
+    throw createSupabaseError(error);
+  }
+
+  return {
+    data: (data as Product[]) || [],
+    total: count ?? (data?.length || 0),
+  };
 }
 
-export async function fetchProductBySlug(slug: string): Promise<{ data: Product | null; isMock: boolean }> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('slug', slug)
-        .single();
-      if (!error && data) {
-        return { data: data as Product, isMock: false };
-      }
-    } catch (e) {
-      console.warn('Supabase slug fetch error, trying local:', e);
+export async function fetchProductBySlug(slug: string): Promise<{ data: Product | null }> {
+  const client = ensureSupabase();
+
+  const { data, error } = await client
+    .from('products')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // Row not found
+      return { data: null };
     }
+    console.error('[Supabase Fetch Slug Error]:', error);
+    throw createSupabaseError(error);
   }
 
-  const items = getLocalProducts();
-  const found = items.find((p) => p.slug === slug) || null;
-  return { data: found, isMock: true };
+  return { data: data as Product };
 }
 
 export async function createProduct(productData: Omit<Product, 'id' | 'created_at'>): Promise<Product> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error(
-      `Operasi ditolak: Koneksi Supabase belum aktif. ${supabaseDiagnostics.sandboxReasons.join(' ')}`
-    );
-  }
+  const client = ensureSupabase();
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('products')
     .insert([productData])
     .select()
     .single();
 
   if (error) {
-    console.error('[Supabase Error] Gagal menambah produk:', error);
-    throw new Error(`[Supabase ${error.code || 'Error'}] ${error.message}`);
+    console.error('[Supabase Create Product Error]:', error);
+    throw createSupabaseError(error);
   }
 
   return data as Product;
 }
 
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error(
-      `Operasi ditolak: Koneksi Supabase belum aktif. ${supabaseDiagnostics.sandboxReasons.join(' ')}`
-    );
-  }
+  const client = ensureSupabase();
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('products')
     .update(updates)
     .eq('id', id)
@@ -328,65 +244,71 @@ export async function updateProduct(id: string, updates: Partial<Product>): Prom
     .single();
 
   if (error) {
-    console.error('[Supabase Error] Gagal mengubah produk:', error);
-    throw new Error(`[Supabase ${error.code || 'Error'}] ${error.message}`);
+    console.error('[Supabase Update Product Error]:', error);
+    throw createSupabaseError(error);
   }
 
   return data as Product;
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error(
-      `Operasi ditolak: Koneksi Supabase belum aktif. ${supabaseDiagnostics.sandboxReasons.join(' ')}`
-    );
-  }
+  const client = ensureSupabase();
 
-  const { error } = await supabase.from('products').delete().eq('id', id);
+  const { error } = await client.from('products').delete().eq('id', id);
 
   if (error) {
-    console.error('[Supabase Error] Gagal menghapus produk:', error);
-    throw new Error(`[Supabase ${error.code || 'Error'}] ${error.message}`);
+    console.error('[Supabase Delete Product Error]:', error);
+    throw createSupabaseError(error);
   }
 }
 
+// -----------------------------------------------------------------------
+// WhatsApp Click Recording (Table 'wa_clicks' - Fire and Forget)
+// -----------------------------------------------------------------------
 
-// WhatsApp Click Recording (Fire-and-forget)
-export async function recordWAClickToDatabase(click: WAClick): Promise<void> {
+export async function recordWAClickToDatabase(click: {
+  product_id?: string | null;
+  source: string;
+  created_at?: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+
   try {
-    saveLocalClick(click);
-    if (isSupabaseConfigured && supabase) {
-      await supabase.from('wa_clicks').insert([
-        {
-          product_id: click.product_id || null,
-          source: click.source,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-    }
+    await supabase.from('wa_clicks').insert([
+      {
+        product_id: click.product_id || null,
+        source: click.source,
+        created_at: click.created_at || new Date().toISOString(),
+      },
+    ]);
   } catch (err) {
-    // Non-blocking error handling
-    console.warn('Silent WA click recording failure:', err);
+    console.warn('[Supabase WA Click] Fire-and-forget insert warning:', err);
   }
 }
 
-// Fetch Admin Stats
-export async function fetchAdminStats(): Promise<AdminStats> {
-  let products = getLocalProducts();
-  let clicks = getLocalClicks();
+// -----------------------------------------------------------------------
+// Admin Statistics (Real Supabase Aggregations)
+// -----------------------------------------------------------------------
 
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const [prodRes, clickRes] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('wa_clicks').select('*'),
-      ]);
-      if (prodRes.data) products = prodRes.data as Product[];
-      if (clickRes.data) clicks = clickRes.data as WAClick[];
-    } catch (e) {
-      console.warn('Failed to load admin stats from Supabase, using local:', e);
-    }
+export async function fetchAdminStats(): Promise<AdminStats> {
+  const client = ensureSupabase();
+
+  const [prodRes, clickRes] = await Promise.all([
+    client.from('products').select('*'),
+    client.from('wa_clicks').select('*'),
+  ]);
+
+  if (prodRes.error) {
+    console.error('[Supabase Admin Stats Error - Products]:', prodRes.error);
+    throw createSupabaseError(prodRes.error);
   }
+
+  if (clickRes.error) {
+    console.warn('[Supabase Admin Stats Warning - Clicks]:', clickRes.error);
+  }
+
+  const products = (prodRes.data as Product[]) || [];
+  const clicks = (clickRes.data as WAClick[]) || [];
 
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 86400000;
@@ -431,7 +353,10 @@ export async function fetchAdminStats(): Promise<AdminStats> {
   };
 }
 
-// Image Compression Helper
+// -----------------------------------------------------------------------
+// Image Compression & Upload Service (Storage Bucket 'product-images')
+// -----------------------------------------------------------------------
+
 export async function compressImage(
   file: File,
   maxWidth = 1600,
@@ -477,18 +402,15 @@ export async function compressImage(
   });
 }
 
-// Upload image to Supabase Storage
 export async function uploadProductImage(file: File): Promise<string> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase belum terkonfigurasi. Periksa VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di environment.');
-  }
+  const client = ensureSupabase();
 
   const compressedBlob = await compressImage(file, 1600, 0.82);
   const ext = 'webp';
   const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
   const filePath = `products/${fileName}`;
 
-  const { data, error } = await supabase.storage
+  const { data, error } = await client.storage
     .from('product-images')
     .upload(filePath, compressedBlob, {
       contentType: 'image/webp',
@@ -496,23 +418,23 @@ export async function uploadProductImage(file: File): Promise<string> {
     });
 
   if (error) {
-    console.error('Supabase Storage Error (uploadProductImage):', error);
-    throw new Error(`[Supabase Storage Error] Gagal upload foto produk: ${error.message}`);
+    console.error('[Supabase Storage Error - uploadProductImage]:', error);
+    throw createSupabaseError({
+      message: `Gagal upload foto produk: ${error.message}`,
+      code: (error as unknown as { code?: string }).code || 'STORAGE_ERROR',
+    });
   }
 
-  const { data: publicUrlData } = supabase.storage
+  const { data: publicUrlData } = client.storage
     .from('product-images')
     .getPublicUrl(data.path);
 
   return publicUrlData.publicUrl;
 }
 
-
 // -----------------------------------------------------------------------
 // Client Management Service (Table 'clients' & Storage 'product-images/clients/')
 // -----------------------------------------------------------------------
-
-const LOCAL_CLIENTS_KEY = 'mutiara_clients_data_v2';
 
 export const INITIAL_CLIENT_SEEDS: Omit<Client, 'id' | 'created_at'>[] = [
   {
@@ -535,85 +457,34 @@ export const INITIAL_CLIENT_SEEDS: Omit<Client, 'id' | 'created_at'>[] = [
   },
 ];
 
-function getLocalClients(): Client[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_CLIENTS_KEY);
-    if (!raw) {
-      const initial: Client[] = INITIAL_CLIENT_SEEDS.map((s, idx) => ({
-        ...s,
-        id: `client_seed_${idx + 1}`,
-        created_at: new Date(Date.now() - idx * 3600000).toISOString(),
-      }));
-      localStorage.setItem(LOCAL_CLIENTS_KEY, JSON.stringify(initial));
-      return initial;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalClients(clients: Client[]): void {
-  try {
-    localStorage.setItem(LOCAL_CLIENTS_KEY, JSON.stringify(clients));
-  } catch (e) {
-    console.error('Failed to save clients locally', e);
-  }
-}
-
-/**
- * Fetch clients from Supabase table 'clients' (with fallback to Infobank, PNM, Pertamina default seed)
- */
 export async function fetchClients(includeInactive = false): Promise<Client[]> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      let query = supabase
-        .from('clients')
-        .select('*')
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: false });
+  const client = ensureSupabase();
 
-      if (!includeInactive) {
-        query = query.eq('is_active', true);
-      }
-
-      const { data, error } = await query;
-      if (!error && data && data.length > 0) {
-        return data as Client[];
-      }
-    } catch {
-      // Fall through to local fallback if offline or table not ready
-    }
-  }
-
-  let items = getLocalClients();
-  if (items.length === 0) {
-    items = INITIAL_CLIENT_SEEDS.map((s, idx) => ({
-      ...s,
-      id: `client_seed_${idx + 1}`,
-      created_at: new Date(Date.now() - idx * 3600000).toISOString(),
-    }));
-  }
+  let query = client
+    .from('clients')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
 
   if (!includeInactive) {
-    items = items.filter((c) => c.is_active);
+    query = query.eq('is_active', true);
   }
-  items.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  return items;
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[Supabase Fetch Clients Error]:', error);
+    throw createSupabaseError(error);
+  }
+
+  return (data as Client[]) || [];
 }
 
-
-/**
- * Client-side image compression preserving transparency (PNG/WebP, max width 600px)
- */
 export async function compressLogoImage(
   file: File,
   maxWidth = 600,
   quality = 0.88
 ): Promise<{ blob: Blob; mimeType: string; extension: string }> {
   return new Promise((resolve, reject) => {
-    // If SVG vector, preserve directly
     if (file.type === 'image/svg+xml') {
       return resolve({ blob: file, mimeType: 'image/svg+xml', extension: 'svg' });
     }
@@ -639,11 +510,9 @@ export async function compressLogoImage(
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject(new Error('Canvas context unavailable'));
 
-        // Clear transparent canvas for transparency preservation
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Try webp first; if transparent, WebP supports alpha. Fallback to image/png
         const targetFormat = file.type === 'image/png' ? 'image/png' : 'image/webp';
         canvas.toBlob(
           (blob) => {
@@ -654,16 +523,7 @@ export async function compressLogoImage(
                 extension: targetFormat === 'image/png' ? 'png' : 'webp',
               });
             } else {
-              canvas.toBlob(
-                (fallbackBlob) => {
-                  if (fallbackBlob) {
-                    resolve({ blob: fallbackBlob, mimeType: 'image/png', extension: 'png' });
-                  } else {
-                    reject(new Error('Gagal mengompresi logo'));
-                  }
-                },
-                'image/png'
-              );
+              reject(new Error('Gagal mengompres logo'));
             }
           },
           targetFormat,
@@ -676,13 +536,8 @@ export async function compressLogoImage(
   });
 }
 
-/**
- * Upload logo file to Supabase Storage bucket 'product-images' under 'clients/{timestamp}-{filename}'
- */
 export async function uploadClientLogo(file: File): Promise<string> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase belum terkonfigurasi. Periksa VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di environment.');
-  }
+  const client = ensureSupabase();
 
   const { blob, mimeType, extension } = await compressLogoImage(file, 600, 0.88);
   const cleanBaseName = file.name
@@ -691,7 +546,7 @@ export async function uploadClientLogo(file: File): Promise<string> {
     .replace(/[^a-z0-9_-]/g, '_');
   const filePath = `clients/${Date.now()}-${cleanBaseName}.${extension}`;
 
-  const { data, error } = await supabase.storage
+  const { data, error } = await client.storage
     .from('product-images')
     .upload(filePath, blob, {
       contentType: mimeType,
@@ -699,20 +554,20 @@ export async function uploadClientLogo(file: File): Promise<string> {
     });
 
   if (error) {
-    console.error('Supabase Storage Error (uploadClientLogo):', error);
-    throw new Error(`[Supabase Storage Error] Gagal upload logo klien: ${error.message}`);
+    console.error('[Supabase Storage Error - uploadClientLogo]:', error);
+    throw createSupabaseError({
+      message: `Gagal upload logo klien: ${error.message}`,
+      code: (error as unknown as { code?: string }).code || 'STORAGE_ERROR',
+    });
   }
 
-  const { data: publicUrlData } = supabase.storage
+  const { data: publicUrlData } = client.storage
     .from('product-images')
     .getPublicUrl(data.path);
 
   return publicUrlData.publicUrl;
 }
 
-/**
- * Extracts relative storage file path from public Supabase URL
- */
 export function extractStoragePath(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
@@ -728,17 +583,12 @@ export function extractStoragePath(url: string | null | undefined): string | nul
   return null;
 }
 
-/**
- * Create a new client entry
- */
 export async function createClient(
   clientData: Omit<Client, 'id' | 'created_at'>
 ): Promise<Client> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
-  }
+  const client = ensureSupabase();
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('clients')
     .insert([
       {
@@ -752,22 +602,17 @@ export async function createClient(
     .single();
 
   if (error) {
-    console.error('Supabase Insert Error (createClient):', error);
-    throw new Error(`[Supabase Error] Gagal menambahkan klien: ${error.message}`);
+    console.error('[Supabase Create Client Error]:', error);
+    throw createSupabaseError(error);
   }
 
   return data as Client;
 }
 
-/**
- * Update an existing client
- */
 export async function updateClient(id: string, updates: Partial<Client>): Promise<Client> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
-  }
+  const client = ensureSupabase();
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('clients')
     .update(updates)
     .eq('id', id)
@@ -775,54 +620,43 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
     .single();
 
   if (error) {
-    console.error('Supabase Update Error (updateClient):', error);
-    throw new Error(`[Supabase Error] Gagal memperbarui klien: ${error.message}`);
+    console.error('[Supabase Update Client Error]:', error);
+    throw createSupabaseError(error);
   }
 
   return data as Client;
 }
 
-/**
- * Delete a client and delete its logo file from storage
- */
 export async function deleteClient(id: string, logoUrl?: string | null): Promise<void> {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
-  }
+  const client = ensureSupabase();
 
   // 1. Delete logo file from storage if present
   if (logoUrl) {
     const storagePath = extractStoragePath(logoUrl);
     if (storagePath) {
       try {
-        await supabase.storage.from('product-images').remove([storagePath]);
+        await client.storage.from('product-images').remove([storagePath]);
       } catch (err) {
-        console.warn('Failed to delete client logo from storage:', err);
+        console.warn('Warning saat hapus logo klien dari storage:', err);
       }
     }
   }
 
   // 2. Delete row from 'clients' table
-  const { error } = await supabase.from('clients').delete().eq('id', id);
+  const { error } = await client.from('clients').delete().eq('id', id);
   if (error) {
-    console.error('Supabase Delete Error (deleteClient):', error);
-    throw new Error(`[Supabase Error] Gagal menghapus klien: ${error.message}`);
+    console.error('[Supabase Delete Client Error]:', error);
+    throw createSupabaseError(error);
   }
 }
 
-/**
- * Bulk create multiple clients (for bulk upload)
- */
 export async function bulkCreateClients(
   clientsData: Array<Omit<Client, 'id' | 'created_at'>>
 ): Promise<Client[]> {
   if (clientsData.length === 0) return [];
+  const client = ensureSupabase();
 
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase belum dikonfigurasi. Periksa kredensial Supabase.');
-  }
-
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('clients')
     .insert(
       clientsData.map((c) => ({
@@ -835,18 +669,13 @@ export async function bulkCreateClients(
     .select();
 
   if (error) {
-    console.error('Supabase Bulk Insert Error (bulkCreateClients):', error);
-    throw new Error(`[Supabase Error] Gagal bulk tambah klien: ${error.message}`);
+    console.error('[Supabase Bulk Create Clients Error]:', error);
+    throw createSupabaseError(error);
   }
 
   return (data as Client[]) || [];
 }
 
-/**
- * Import initial seeds (Infobank, PNM, Pertamina)
- */
 export async function importInitialClients(): Promise<Client[]> {
   return bulkCreateClients(INITIAL_CLIENT_SEEDS);
 }
-
-

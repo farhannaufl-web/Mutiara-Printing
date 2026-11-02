@@ -109,7 +109,8 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Gagal memproses bulk upload.');
+      const code = (err as { code?: string })?.code ? `[Kode: ${(err as { code?: string }).code}] ` : '';
+      setErrorMsg(`${code}${err instanceof Error ? err.message : 'Gagal memproses bulk upload.'}`);
     } finally {
       setProcessing(false);
       setProgressMsg('');

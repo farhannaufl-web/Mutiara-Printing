@@ -107,7 +107,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       const newUrls = await Promise.all(uploadPromises);
       setImageUrls((prev) => [...prev, ...newUrls]);
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Gagal mengunggah foto');
+      const code = (err as { code?: string })?.code ? `[Kode: ${(err as { code?: string }).code}] ` : '';
+      setErrorMsg(`${code}${err instanceof Error ? err.message : 'Gagal mengunggah foto'}`);
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -164,7 +165,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       });
       onClose();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Gagal menyimpan produk');
+      const code = (err as { code?: string })?.code ? `[Kode: ${(err as { code?: string }).code}] ` : '';
+      setErrorMsg(`${code}${err instanceof Error ? err.message : 'Gagal menyimpan produk'}`);
     } finally {
       setSaving(false);
     }

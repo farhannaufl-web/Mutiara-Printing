@@ -8,13 +8,14 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
-  isSupabaseConfigured,
 } from '../../lib/supabase';
 import { Product, AdminStats } from '../../types';
 import { SITE_CONFIG } from '../../config/site';
 import { ProductFormModal } from '../../components/admin/ProductFormModal';
 import { DeleteConfirmModal } from '../../components/admin/DeleteConfirmModal';
 import { AdminHeader } from '../../components/admin/AdminHeader';
+import { MigrationModal } from '../../components/admin/MigrationModal';
+import { checkLegacyLocalData, LocalDataSummary } from '../../lib/migration';
 
 import {
   Package,
@@ -25,17 +26,31 @@ import {
   Search,
   Edit2,
   Trash2,
-  LogOut,
-  ExternalLink,
   Sparkles,
   TrendingUp,
   RefreshCw,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
+  Database,
 } from 'lucide-react';
 
+const formatErrorMessage = (err: unknown, fallback: string = 'Terjadi kesalahan'): string => {
+  if (err && typeof err === 'object') {
+    const errorObj = err as { message?: string; code?: string };
+    if (errorObj.message) {
+      const codePart = errorObj.code ? `[Kode: ${errorObj.code}] ` : '';
+      return `${codePart}${errorObj.message}`;
+    }
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return fallback;
+};
+
 export const AdminDashboard: React.FC = () => {
-  const { isAuthenticated, userEmail, logout, loading: authLoading } = useAdminAuth();
+  const { isAuthenticated, loading: authLoading } = useAdminAuth();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -43,6 +58,15 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+
+  // Legacy data migration banner state
+  const [legacySummary, setLegacySummary] = useState<LocalDataSummary>({
+    hasLocalData: false,
+    productCount: 0,
+    clientCount: 0,
+    clickCount: 0,
+  });
+  const [migrationModalOpen, setMigrationModalOpen] = useState(false);
 
   // Modal states
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -56,7 +80,7 @@ export const AdminDashboard: React.FC = () => {
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), 4500);
   };
 
   useEffect(() => {
@@ -74,9 +98,10 @@ export const AdminDashboard: React.FC = () => {
       ]);
       setProducts(prodsRes.data);
       setStats(statsRes);
+      setLegacySummary(checkLegacyLocalData());
     } catch (err: unknown) {
       console.error('Failed to load admin data', err);
-      showToast('Gagal menyinkronkan data katalog.', 'error');
+      showToast(formatErrorMessage(err, 'Gagal mengambil data dari Supabase.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -91,24 +116,24 @@ export const AdminDashboard: React.FC = () => {
   const handleToggleActive = async (product: Product) => {
     try {
       const updated = await updateProduct(product.id, { is_active: !product.is_active });
-      setProducts((prev) => prev.map((p) => (p.id === product.id ? updated : p)));
       showToast(
         `Produk "${product.title}" berhasil di-${updated.is_active ? 'aktifkan' : 'sembunyikan'}.`
       );
-      // Refresh stats
-      fetchAdminStats().then(setStats);
+      // Strictly refetch from Supabase
+      await loadAllData();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Gagal mengubah status aktif produk.', 'error');
+      showToast(formatErrorMessage(err, 'Gagal mengubah status aktif produk.'), 'error');
     }
   };
 
   const handleToggleFeatured = async (product: Product) => {
     try {
-      const updated = await updateProduct(product.id, { is_featured: !product.is_featured });
-      setProducts((prev) => prev.map((p) => (p.id === product.id ? updated : p)));
+      await updateProduct(product.id, { is_featured: !product.is_featured });
       showToast(`Status unggulan "${product.title}" diperbarui.`);
+      // Strictly refetch from Supabase
+      await loadAllData();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Gagal mengubah status unggulan.', 'error');
+      showToast(formatErrorMessage(err, 'Gagal mengubah status unggulan.'), 'error');
     }
   };
 
@@ -123,16 +148,20 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleSaveProduct = async (productData: Partial<Product>) => {
-    if (editingProduct) {
-      const updated = await updateProduct(editingProduct.id, productData);
-      setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? updated : p)));
-      showToast(`Perubahan produk "${updated.title}" berhasil disimpan.`);
-    } else {
-      const created = await createProduct(productData as Omit<Product, 'id' | 'created_at'>);
-      setProducts((prev) => [created, ...prev]);
-      showToast(`Produk baru "${created.title}" berhasil ditambahkan.`);
+    try {
+      if (editingProduct) {
+        const updated = await updateProduct(editingProduct.id, productData);
+        showToast(`Perubahan produk "${updated.title}" berhasil disimpan.`);
+      } else {
+        const created = await createProduct(productData as Omit<Product, 'id' | 'created_at'>);
+        showToast(`Produk baru "${created.title}" berhasil ditambahkan.`);
+      }
+      // Strictly refetch from Supabase
+      await loadAllData();
+    } catch (err: unknown) {
+      showToast(formatErrorMessage(err, 'Gagal menyimpan data produk.'), 'error');
+      throw err;
     }
-    fetchAdminStats().then(setStats);
   };
 
   const handleOpenDelete = (product: Product) => {
@@ -145,13 +174,13 @@ export const AdminDashboard: React.FC = () => {
     setIsDeleting(true);
     try {
       await deleteProduct(productToDelete.id);
-      setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
       showToast(`Produk "${productToDelete.title}" telah dihapus.`);
       setDeleteModalOpen(false);
       setProductToDelete(null);
-      fetchAdminStats().then(setStats);
+      // Strictly refetch from Supabase
+      await loadAllData();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Gagal menghapus produk.', 'error');
+      showToast(formatErrorMessage(err, 'Gagal menghapus produk.'), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -173,24 +202,47 @@ export const AdminDashboard: React.FC = () => {
         <title>Dashboard Admin – {SITE_CONFIG.name}</title>
       </Helmet>
 
-      {/* Toast Alert */}
+      {/* Toast Alert with Code */}
       {toast && (
-        <div className="fixed top-20 right-4 z-50 flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-xs shadow-2xl text-white">
+        <div className="fixed top-20 right-4 z-50 flex items-center gap-2.5 rounded-xl border border-slate-700 bg-slate-900/95 px-4 py-3 text-xs shadow-2xl text-white backdrop-blur-md max-w-md">
           {toast.type === 'success' ? (
-            <CheckCircle className="h-4 w-4 text-emerald-400" />
+            <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
           ) : (
-            <AlertCircle className="h-4 w-4 text-red-400" />
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
           )}
-          <span>{toast.message}</span>
+          <span className="break-words leading-relaxed">{toast.message}</span>
         </div>
       )}
 
       <div className="min-h-screen bg-[#090E1A] pb-24 text-slate-100">
-        <AdminHeader />
+        <AdminHeader onRefreshData={loadAllData} />
 
         <main className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8 space-y-8">
-
           
+          {/* Legacy Data Migration Alert Banner */}
+          {legacySummary.hasLocalData && (
+            <div className="rounded-xl border border-amber-500/50 bg-amber-950/30 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-amber-950/20">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Data Lama Terdeteksi di Browser</h3>
+                  <p className="text-xs text-amber-200/90 mt-0.5 leading-relaxed">
+                    Ditemukan <span className="font-semibold text-amber-300">{legacySummary.productCount} produk</span>,{' '}
+                    <span className="font-semibold text-amber-300">{legacySummary.clientCount} klien</span>, dan{' '}
+                    <span className="font-semibold text-amber-300">{legacySummary.clickCount} klik</span> di localStorage browser. Pindahkan sekarang ke Supabase agar tersimpan permanen dan dapat dilihat semua pengunjung.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setMigrationModalOpen(true)}
+                className="shrink-0 flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-amber-300 shadow-md transition-transform active:scale-95"
+              >
+                <Database className="h-4 w-4" />
+                <span>Migrasi data lokal ke Supabase</span>
+              </button>
+            </div>
+          )}
+
           {/* Dashboard Summary Statistics */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-slate-800 bg-[#111A2D] p-5">
@@ -255,20 +307,24 @@ export const AdminDashboard: React.FC = () => {
                 <h3 className="font-serif text-xs font-bold uppercase tracking-wider text-amber-400">
                   Top 5 Produk Paling Banyak Ditanyakan via WhatsApp
                 </h3>
-                <span className="text-[11px] text-slate-500">Tracking Realtime</span>
+                <span className="text-[11px] text-slate-500">Tracking Realtime Supabase</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 {stats.topProducts.map((item, idx) => (
                   <div
-                    key={idx}
-                    className="flex flex-col justify-between rounded-lg border border-slate-800/80 bg-slate-900/60 p-3 text-xs"
+                    key={item.productId || idx}
+                    className="flex items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-900/60 p-3"
                   >
-                    <span className="font-medium text-slate-200 line-clamp-2">
-                      {item.productTitle}
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-xs font-bold text-amber-400">
+                      {idx + 1}
                     </span>
-                    <div className="mt-2 flex items-center justify-between text-amber-400 font-bold tabular-nums">
-                      <span className="text-[10px] text-slate-500">Ranking #{idx + 1}</span>
-                      <span>{item.clickCount} klik</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-slate-200" title={item.productTitle}>
+                        {item.productTitle}
+                      </p>
+                      <p className="text-[11px] text-slate-400 tabular-nums">
+                        {item.clickCount} klik
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -276,65 +332,71 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Catalog Management Section */}
+          {/* Products Table Section */}
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            
+            {/* Action Bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-serif text-xl font-bold text-white">
-                  Daftar Katalog Plakat &amp; Trophy
+                  Daftar Katalog Produk
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Tambah foto baru, atur urutan tampilan, atau nonaktifkan produk.
+                  Kelola plakat, trophy, dan medali yang tampil di katalog publik
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={loadAllData}
-                  title="Muat Ulang"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white"
+                  disabled={loading}
+                  title="Muat ulang dari Supabase"
+                  className="rounded-xl border border-slate-800 bg-[#111A2D] p-2.5 text-slate-400 hover:text-white transition-colors"
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 </button>
                 <button
                   onClick={handleOpenAdd}
-                  className="flex items-center gap-1.5 rounded-xl bg-[#C9A227] px-4 py-2 text-xs font-bold text-slate-950 transition-colors hover:bg-amber-400"
+                  className="flex items-center gap-1.5 rounded-xl bg-[#C9A227] px-4 py-2.5 text-xs font-bold text-slate-950 transition-colors hover:bg-amber-400"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Tambah Produk Baru</span>
+                  <span>Tambah Produk</span>
                 </button>
               </div>
             </div>
 
             {/* Filter and Search Bar */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-slate-800 bg-[#111A2D] p-3">
+              {/* Search */}
               <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <input
                   type="text"
+                  placeholder="Cari judul, material, atau slug..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Cari berdasarkan judul, material, atau slug..."
-                  className="w-full rounded-xl border border-slate-800 bg-[#111A2D] py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-900/90 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                 />
-                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
               </div>
 
+              {/* Category Dropdown */}
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="rounded-xl border border-slate-800 bg-[#111A2D] px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none"
+                className="rounded-lg border border-slate-800 bg-slate-900/90 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none"
               >
-                <option value="all">Semua Kategori ({products.length})</option>
-                {SITE_CONFIG.categories.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.name}
-                  </option>
-                ))}
+                <option value="all">Semua Kategori</option>
+                <option value="resin">Plakat Resin</option>
+                <option value="akrilik">Plakat Akrilik</option>
+                <option value="timah">Plakat Timah / Logam</option>
+                <option value="kristal">Trophy Kristal</option>
+                <option value="medali">Medali</option>
+                <option value="lainnya">Lainnya</option>
               </select>
             </div>
 
-            {/* Table View (Desktop & Responsive Scroll) */}
-            <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#111A2D] shadow-xl">
+            {/* Products Table */}
+            <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#111A2D]">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="border-b border-slate-800 bg-slate-900/80 font-semibold text-slate-400">
@@ -351,7 +413,7 @@ export const AdminDashboard: React.FC = () => {
                     {loading ? (
                       <tr>
                         <td colSpan={6} className="p-8 text-center text-slate-500">
-                          Memuat data produk...
+                          Memuat data produk dari Supabase...
                         </td>
                       </tr>
                     ) : filteredProducts.length === 0 ? (
@@ -486,6 +548,13 @@ export const AdminDashboard: React.FC = () => {
             setDeleteModalOpen(false);
             setProductToDelete(null);
           }}
+        />
+
+        {/* Migration Modal */}
+        <MigrationModal
+          isOpen={migrationModalOpen}
+          onClose={() => setMigrationModalOpen(false)}
+          onMigrationSuccess={loadAllData}
         />
 
       </div>

@@ -89,7 +89,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    */
   const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
     if (!isSupabaseConfigured || !supabase) {
-      const reason = supabaseDiagnostics.sandboxReasons[0] || 'Koneksi database belum disetel.';
+      const reason = supabaseDiagnostics.configErrors[0] || 'Koneksi database belum disetel.';
       return {
         success: false,
         error: `Supabase belum terkonfigurasi (${reason}). Pastikan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY telah diisi di environment.`,
