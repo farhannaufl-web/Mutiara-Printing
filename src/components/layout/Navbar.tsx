@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { SITE_CONFIG } from '../../config/site';
 import { handleWhatsAppClick } from '../../lib/whatsapp';
-import { MessageCircle, Menu, X, Award, ChevronRight } from 'lucide-react';
+import { MessageCircle, Menu, X, ChevronRight } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -24,16 +24,22 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-[#0B1120]/90 backdrop-blur-md">
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-8 px-4 sm:px-6 lg:px-8">
         
-        {/* Zone 1: Single text element wordmark */}
-        <Link to="/" className="flex items-center gap-2.5 whitespace-nowrap shrink-0 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 via-[#C9A227] to-amber-700 text-slate-950 shadow-md">
-            <Award className="h-5 w-5" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-serif text-lg sm:text-xl font-bold tracking-tight text-white group-hover:text-amber-300 transition-colors">
-              {SITE_CONFIG.name}
-            </span>
-          </div>
+        {/* Zone 1: Logo & Wordmark Brand */}
+        <Link
+          to="/"
+          className="flex items-center gap-2 sm:gap-2.5 whitespace-nowrap shrink-0 group py-1"
+          title="Mutiara Printing & Promotion - Beranda"
+        >
+          <img
+            src="/assets/aistudio/Logo_45caa060.png"
+            alt="Logo Mutiara Printing"
+            className="h-8 sm:h-9 md:h-10 w-auto object-contain transition-transform duration-200 group-hover:scale-105 drop-shadow"
+          />
+          <img
+            src="/assets/aistudio/Tulisan_a6e36dee.png"
+            alt="Mutiara Printing & Promotion"
+            className="h-6 sm:h-7 md:h-8 w-auto object-contain brightness-105"
+          />
         </Link>
 
         {/* Zone 2: 4-5 single-line clean text links */}

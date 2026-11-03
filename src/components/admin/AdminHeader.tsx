@@ -43,8 +43,20 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onRefreshData }) => {
         {/* Top action row */}
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <Link to="/admin/dashboard" className="font-serif text-lg font-bold text-white tracking-tight">
-              {SITE_CONFIG.name} <span className="text-amber-400 font-sans text-xs">/ Admin</span>
+            <Link to="/admin/dashboard" className="flex items-center gap-2 group">
+              <img
+                src="/assets/aistudio/Logo_45caa060.png"
+                alt="Logo Mutiara"
+                className="h-7 w-auto object-contain transition-transform group-hover:scale-105"
+              />
+              <img
+                src="/assets/aistudio/Tulisan_a6e36dee.png"
+                alt="Mutiara Printing"
+                className="h-5 sm:h-6 w-auto object-contain"
+              />
+              <span className="text-amber-400 font-sans text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20">
+                Admin
+              </span>
             </Link>
             {isSupabaseConfigured ? (
               <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-medium text-emerald-400">

@@ -12,13 +12,17 @@ export const Footer: React.FC = () => {
           
           {/* Col 1: Brand Info */}
           <div className="space-y-4 md:col-span-1">
-            <Link to="/" className="flex items-center gap-2 text-white">
-              <div className="flex h-8 w-8 items-center justify-center rounded bg-gradient-to-br from-amber-400 via-[#C9A227] to-amber-700 text-slate-950 font-bold">
-                <Award className="h-4 w-4" />
-              </div>
-              <span className="font-serif text-lg font-bold text-white tracking-tight">
-                {SITE_CONFIG.name}
-              </span>
+            <Link to="/" className="flex items-center gap-2.5 text-white group" title="Mutiara Printing & Promotion">
+              <img
+                src="/assets/aistudio/Logo_45caa060.png"
+                alt="Logo Mutiara Printing"
+                className="h-8 w-auto object-contain transition-transform group-hover:scale-105"
+              />
+              <img
+                src="/assets/aistudio/Tulisan_a6e36dee.png"
+                alt="Mutiara Printing & Promotion"
+                className="h-6 w-auto object-contain"
+              />
             </Link>
             <p className="text-xs leading-relaxed text-slate-400">
               {SITE_CONFIG.shortDescription}
